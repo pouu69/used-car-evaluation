@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.playwright-mcp/
+
+# Temporary discovery captures (kept locally, not committed)
+*.png
+*-snapshot.yml
+
+# Tooling
+.superpowers/
+.omc/
+.claude/

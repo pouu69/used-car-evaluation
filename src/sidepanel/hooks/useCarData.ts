@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Message } from '@/core/messaging/protocol.js';
+import {
+  isCollectProgress,
+  isCollectResult,
+  isCollectError,
+} from '@/core/messaging/protocol.js';
+import { extractCarId } from '@/core/encar/url.js';
 import type { CacheRow } from '@/core/storage/db.js';
+
+// Re-export shared URL helpers so existing consumers importing from this hook
+// (e.g. `App.tsx` pulls `isEncarDetail`) keep working without changes.
+export { extractCarId, isEncarDetail } from '@/core/encar/url.js';
 
 export interface ActiveTabInfo {
   tabId: number;
@@ -17,15 +27,6 @@ export interface UseCarDataResult {
   refresh: () => Promise<void>;
   ack: (ruleId: string) => void;
 }
-
-export const extractCarId = (url: string | undefined): string | null => {
-  if (!url) return null;
-  const m = /\/cars\/detail\/(\d+)/.exec(url);
-  return m?.[1] ?? null;
-};
-
-export const isEncarDetail = (url: string | undefined): boolean =>
-  !!url && /^https:\/\/fem\.encar\.com\/cars\/detail\//.test(url);
 
 const queryActiveTab = async (): Promise<ActiveTabInfo | null> => {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -51,6 +52,11 @@ const triggerCollect = async (
   }
 };
 
+type RefreshWatchdog = {
+  timeout: ReturnType<typeof setTimeout>;
+  listener: (msg: unknown) => void;
+};
+
 export function useCarData(): UseCarDataResult {
   const [active, setActive] = useState<ActiveTabInfo | null>(null);
   const [row, setRow] = useState<CacheRow | null>(null);
@@ -62,6 +68,18 @@ export function useCarData(): UseCarDataResult {
   // without being recreated on every state change.
   const activeRef = useRef<ActiveTabInfo | null>(null);
   activeRef.current = active;
+
+  // Tracks any in-flight refresh() watchdog (timeout + temporary listener) so
+  // we can tear it down on unmount or when a subsequent refresh() starts.
+  const refreshWatchdogRef = useRef<RefreshWatchdog | null>(null);
+
+  const clearRefreshWatchdog = useCallback(() => {
+    const current = refreshWatchdogRef.current;
+    if (!current) return;
+    clearTimeout(current.timeout);
+    chrome.runtime.onMessage.removeListener(current.listener);
+    refreshWatchdogRef.current = null;
+  }, []);
 
   const load = useCallback(async () => {
     const tabInfo = await queryActiveTab();
@@ -96,23 +114,21 @@ export function useCarData(): UseCarDataResult {
     void load();
 
     const listener = (msg: unknown) => {
-      if (typeof msg !== 'object' || msg === null || !('type' in msg)) return;
-      const m = msg as Message;
-      if (m.type === 'COLLECT_PROGRESS') {
-        setProgressStage(m.stage);
+      if (isCollectProgress(msg)) {
+        setProgressStage(msg.stage);
         setLoadError(null);
-      } else if (m.type === 'COLLECT_RESULT') {
+      } else if (isCollectResult(msg)) {
         setProgressStage(null);
         setLoadError(null);
         const cur = activeRef.current;
-        if (cur && cur.carId === m.carId) {
+        if (cur && cur.carId === msg.carId) {
           const now = Date.now();
           setRow({
-            carId: m.carId,
+            carId: msg.carId,
             url: cur.url,
-            parsed: m.parsed,
-            facts: m.facts,
-            report: m.report,
+            parsed: msg.parsed,
+            facts: msg.facts,
+            report: msg.report,
             cachedAt: now,
             expiresAt: now + 24 * 60 * 60 * 1000,
           });
@@ -121,11 +137,11 @@ export function useCarData(): UseCarDataResult {
           // Not for current tab — reconcile via DB.
           void load();
         }
-      } else if (m.type === 'COLLECT_ERROR') {
+      } else if (isCollectError(msg)) {
         setProgressStage(null);
         const cur = activeRef.current;
-        if (cur && cur.carId === m.carId) {
-          setLoadError(m.reason);
+        if (cur && cur.carId === msg.carId) {
+          setLoadError(msg.reason);
         }
       }
     };
@@ -159,10 +175,14 @@ export function useCarData(): UseCarDataResult {
       chrome.runtime.onMessage.removeListener(listener);
       chrome.tabs.onActivated.removeListener(onActivated);
       chrome.tabs.onUpdated.removeListener(onUpdated);
+      clearRefreshWatchdog();
     };
-  }, [load]);
+  }, [load, clearRefreshWatchdog]);
 
   const refresh = useCallback(async () => {
+    // Tear down any prior in-flight refresh watchdog before starting a new one.
+    clearRefreshWatchdog();
+
     const fresh = await queryActiveTab();
     setActive(fresh);
     if (!fresh?.carId) {
@@ -183,25 +203,34 @@ export function useCarData(): UseCarDataResult {
     void triggerCollect(fresh.tabId, fresh.carId, fresh.url);
 
     // Safety net: if no result arrives in 22s, surface a watchdog error.
-    const hardTimeout = setTimeout(() => {
+    const timeout = setTimeout(() => {
       setLoadError('watchdog_timeout');
       setProgressStage(null);
+      // Self-clean on fire so the ref doesn't dangle past the timer.
+      const current = refreshWatchdogRef.current;
+      if (current && current.timeout === timeout) {
+        chrome.runtime.onMessage.removeListener(current.listener);
+        refreshWatchdogRef.current = null;
+      }
     }, 22_000);
+
     const off = (msg: unknown) => {
       if (
-        typeof msg === 'object' &&
-        msg !== null &&
-        'type' in msg &&
-        ((msg as Message).type === 'COLLECT_RESULT' ||
-          (msg as Message).type === 'COLLECT_ERROR' ||
-          (msg as Message).type === 'COLLECT_PROGRESS')
+        isCollectResult(msg) ||
+        isCollectError(msg) ||
+        isCollectProgress(msg)
       ) {
-        clearTimeout(hardTimeout);
-        chrome.runtime.onMessage.removeListener(off);
+        const current = refreshWatchdogRef.current;
+        if (current && current.timeout === timeout) {
+          clearTimeout(current.timeout);
+          chrome.runtime.onMessage.removeListener(current.listener);
+          refreshWatchdogRef.current = null;
+        }
       }
     };
     chrome.runtime.onMessage.addListener(off);
-  }, []);
+    refreshWatchdogRef.current = { timeout, listener: off };
+  }, [clearRefreshWatchdog]);
 
   const ack = useCallback(
     (ruleId: string) => {

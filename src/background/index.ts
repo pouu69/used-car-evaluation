@@ -252,7 +252,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       const row = msg.carId
         ? await db.cache.get(msg.carId)
         : (await db.cache.orderBy('cachedAt').reverse().limit(1).toArray())[0];
-      sendResponse(row ?? null);
+      if (!row) {
+        sendResponse(null);
+        return;
+      }
+      // 캐시에 저장된 facts/report는 규칙 로직이 바뀌면 즉시 stale이 된다.
+      // parsed만 신뢰하고 매 조회마다 facts/report를 재계산해서 최신 룰 버전을
+      // 항상 반영한다. (확장 reload만 하면 바로 새 메시지가 화면에 뜸.)
+      const facts = encarToFacts(row.parsed);
+      const report = evaluate(facts);
+      sendResponse({ ...row, facts, report });
     })();
     return true;
   }

@@ -12,6 +12,8 @@ import {
   sample002,
   sample003,
   sample004,
+  sample006,
+  samplePersonalClean,
   sampleIdeal,
 } from '../src/__fixtures__/samples.js';
 
@@ -61,5 +63,53 @@ describe('integration: parsed → facts → verdict', () => {
     expect(report.verdict).toBe('OK');
     expect(report.killers.length).toBe(0);
     expect(report.warns.length).toBe(0);
+  });
+
+  it('Sample 006 (BMW G30 개인매물) → NEVER (R08) but R03 is NOT a killer', () => {
+    const facts = encarToFacts(sample006);
+    const report = evaluate(facts);
+    expect(report.verdict).toBe('NEVER');
+    // R08 KILLER — real problem on this listing
+    expect(triggered(report, ['R08'])).toBe(true);
+    // R03 must resolve as UNKNOWN (personal listing cannot get diagnosis)
+    // — proves the dealer/personal branch in the bridge.
+    const r03 = report.results.find((r) => r.ruleId === 'R03');
+    expect(r03?.severity).toBe('unknown');
+    expect(r03?.message).toContain('개인매물');
+    // R04 similarly falls back to unknown (no diagnosis + no inspection).
+    const r04 = report.results.find((r) => r.ruleId === 'R04');
+    expect(r04?.severity).toBe('unknown');
+    // R05 is PASS — this listing is NOT a rental despite being personal.
+    const r05 = report.results.find((r) => r.ruleId === 'R05');
+    expect(r05?.severity).toBe('pass');
+    // R10 WARN — cumulative damages (17.4M원) exceed the 1M domestic threshold
+    // (this is an imported car so threshold is 2M, still exceeded).
+    const r10 = report.results.find((r) => r.ruleId === 'R10');
+    expect(r10?.severity).toBe('warn');
+    // Bridge warning must surface the personal branch.
+    expect(facts.bridgeWarnings).toContain('personal_listing');
+    expect(facts.bridgeWarnings).toContain('r03_skipped_personal');
+  });
+
+  it('Synthetic clean personal listing → UNKNOWN (not NEVER, not OK)', () => {
+    // The clean-personal fixture has no accidents, no rentals, no insurance
+    // gap — but also no diagnosis. Expected behaviour:
+    //   - R01/R02/R05/R06/R07/R08/R09/R10/R11 → PASS
+    //   - R03 → UNKNOWN (personal can't be diagnosed)
+    //   - R04 → UNKNOWN (no frame signal)
+    //   - verdict → UNKNOWN (at least one rule is unknown)
+    // This locks in that a clean personal listing never verdicts OK, but
+    // also never verdicts NEVER just because it's personal.
+    const facts = encarToFacts(samplePersonalClean);
+    const report = evaluate(facts);
+    expect(report.verdict).toBe('UNKNOWN');
+    expect(report.killers.length).toBe(0);
+    expect(report.warns.length).toBe(0);
+    const r03 = report.results.find((r) => r.ruleId === 'R03');
+    expect(r03?.severity).toBe('unknown');
+    const r04 = report.results.find((r) => r.ruleId === 'R04');
+    expect(r04?.severity).toBe('unknown');
+    const r01 = report.results.find((r) => r.ruleId === 'R01');
+    expect(r01?.severity).toBe('pass');
   });
 });

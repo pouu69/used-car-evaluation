@@ -13,6 +13,7 @@ import { isMessage, type Message } from '@/core/messaging/protocol';
 import {
   mainWorldCollect,
   type MainWorldPayload,
+  type FetchStatus,
 } from './main-world-collector';
 
 const fetchText = async (
@@ -96,6 +97,11 @@ interface CollectInput {
   recordJson?: unknown;
   diagnosisJson?: unknown;
   inspectionJson?: unknown;
+  httpStatus?: {
+    recordJson?: FetchStatus;
+    diagnosisJson?: FetchStatus;
+    inspectionJson?: FetchStatus;
+  };
 }
 
 const collectFor = async (
@@ -131,6 +137,7 @@ const collectFor = async (
         recordJson: payload.recordJson,
         diagnosisJson: payload.diagnosisJson,
         inspectionJson: payload.inspectionJson,
+        httpStatus: payload.httpStatus,
       };
     }
   }
@@ -152,6 +159,7 @@ const collectFor = async (
     recordJson: input.recordJson ?? undefined,
     diagnosisJson: input.diagnosisJson ?? undefined,
     inspectionJson: input.inspectionJson ?? undefined,
+    httpStatus: input.httpStatus,
     loginState: 'unknown',
   });
 

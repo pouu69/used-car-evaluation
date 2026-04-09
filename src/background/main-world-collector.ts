@@ -9,13 +9,40 @@
  *
  * The function returns a serialisable payload containing everything the
  * orchestrator needs. Nothing is written to the DOM.
+ *
+ * ## Personal-listing handling
+ *
+ * Personal (CLIENT) listings like sample 006 do **not** have
+ * `/readside/diagnosis/vehicle/{id}` or `/readside/inspection/vehicle/{id}`
+ * endpoints — those return HTTP 404. The `recordApi` endpoint, however,
+ * still works. To avoid confusing "personal listing" with "network error",
+ * we propagate the actual HTTP status alongside each payload so the
+ * orchestrator can decide whether to surface `'not_applicable_personal'` or
+ * a generic `'not_fetched'` reason.
  */
+export type FetchStatus =
+  | 'ok' // 2xx + JSON parsed
+  | 'not_found' // 404 — endpoint intentionally absent (personal listing, deleted, etc.)
+  | 'unauthorized' // 401/403 — login required
+  | 'error' // 5xx / network / timeout / parse error
+  | 'skipped'; // not attempted (e.g. missing vehicleId)
+
 export interface MainWorldPayload {
   preloadedState: unknown;
   nextData: unknown;
   recordJson: unknown;
   diagnosisJson: unknown;
   inspectionJson: unknown;
+  /**
+   * HTTP status per API call so the bridge can distinguish
+   * "intentional 404 on personal" from "flaky network". `'skipped'` when
+   * the call was never made (e.g. no vehicleId).
+   */
+  httpStatus: {
+    recordJson: FetchStatus;
+    diagnosisJson: FetchStatus;
+    inspectionJson: FetchStatus;
+  };
   errors: Record<string, string>;
 }
 
@@ -63,22 +90,37 @@ export async function mainWorldCollect(): Promise<MainWorldPayload> {
     }
   };
 
-  const safeJson = async (url: string): Promise<unknown | null> => {
+  type FetchResult = { body: unknown | null; status: FetchStatus };
+  const safeJson = async (url: string): Promise<FetchResult> => {
     try {
       // Omit `credentials: 'include'` — api.encar.com rejects the CORS
       // preflight it triggers. Default fetch still sends first-party cookies
       // for api.encar.com (same-site with fem.encar.com).
       const r = await withTimeout(fetch(url), 6_500);
-      if (!r || !r.ok) return null;
-      return await r.json();
+      if (!r) return { body: null, status: 'error' };
+      if (r.status === 404) return { body: null, status: 'not_found' };
+      if (r.status === 401 || r.status === 403) {
+        return { body: null, status: 'unauthorized' };
+      }
+      if (!r.ok) return { body: null, status: 'error' };
+      try {
+        return { body: await r.json(), status: 'ok' };
+      } catch {
+        return { body: null, status: 'error' };
+      }
     } catch {
-      return null;
+      return { body: null, status: 'error' };
     }
   };
 
   let recordJson: unknown = null;
   let diagnosisJson: unknown = null;
   let inspectionJson: unknown = null;
+  const httpStatus: MainWorldPayload['httpStatus'] = {
+    recordJson: 'skipped',
+    diagnosisJson: 'skipped',
+    inspectionJson: 'skipped',
+  };
 
   if (vehicleId !== undefined) {
     const tasks: Array<Promise<void>> = [];
@@ -88,26 +130,31 @@ export async function mainWorldCollect(): Promise<MainWorldPayload> {
           `https://api.encar.com/v1/readside/record/vehicle/${vehicleId}/open?vehicleNo=${encodeURIComponent(
             vehicleNo,
           )}`,
-        ).then((j) => {
-          recordJson = j;
-          if (!j) errors.recordJson = 'null';
+        ).then((r) => {
+          recordJson = r.body;
+          httpStatus.recordJson = r.status;
+          if (r.status !== 'ok') errors.recordJson = r.status;
         }),
       );
+    } else {
+      errors.recordJson = 'no_vehicleNo';
     }
     tasks.push(
       safeJson(
         `https://api.encar.com/v1/readside/diagnosis/vehicle/${vehicleId}`,
-      ).then((j) => {
-        diagnosisJson = j;
-        if (!j) errors.diagnosisJson = 'null';
+      ).then((r) => {
+        diagnosisJson = r.body;
+        httpStatus.diagnosisJson = r.status;
+        if (r.status !== 'ok') errors.diagnosisJson = r.status;
       }),
     );
     tasks.push(
       safeJson(
         `https://api.encar.com/v1/readside/inspection/vehicle/${vehicleId}`,
-      ).then((j) => {
-        inspectionJson = j;
-        if (!j) errors.inspectionJson = 'null';
+      ).then((r) => {
+        inspectionJson = r.body;
+        httpStatus.inspectionJson = r.status;
+        if (r.status !== 'ok') errors.inspectionJson = r.status;
       }),
     );
     await Promise.all(tasks);
@@ -121,6 +168,7 @@ export async function mainWorldCollect(): Promise<MainWorldPayload> {
     recordJson,
     diagnosisJson,
     inspectionJson,
+    httpStatus,
     errors,
   };
 }

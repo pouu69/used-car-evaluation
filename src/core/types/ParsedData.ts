@@ -4,6 +4,27 @@
  */
 import type { FieldStatus } from './FieldStatus.js';
 
+/**
+ * Contact block author type. Observed values across samples:
+ *   'DEALER' — used-car dealer (default, all fixtures 001–005)
+ *   'CLIENT' — individual private seller (sample 006)
+ * Keep as a union so future values (e.g. 'PARTNER_DEALER') surface as type
+ * errors rather than silent regressions.
+ */
+export type EncarUserType = 'CLIENT' | 'DEALER';
+
+/**
+ * Import origin classification. The set grows over time; extend as needed.
+ *   'REGULAR_IMPORT'   — standard parallel-import dealer (samples 004, 005)
+ *   'BRAND_IMPORT'     — brand-certified import
+ *   'NONE_IMPORT_TYPE' — personal listing with no import channel (sample 006)
+ */
+export type EncarImportType =
+  | 'REGULAR_IMPORT'
+  | 'BRAND_IMPORT'
+  | 'NONE_IMPORT_TYPE'
+  | (string & {});
+
 export interface EncarCarBase {
   category: {
     manufacturerName: string;
@@ -15,14 +36,16 @@ export interface EncarCarBase {
     formYear?: string;
     newPrice?: number;
     domestic: boolean;
-    importType?: string;
+    importType?: EncarImportType | null;
   };
   advertisement: {
     price: number;
     preVerified: boolean;
     trust: string[];
-    oneLineText?: string;
+    oneLineText?: string | null;
     homeService?: boolean;
+    advertisementType?: 'AD_NORMAL' | 'NORMAL' | (string & {});
+    diagnosisCar?: boolean;
   };
   spec: {
     mileage: number;
@@ -30,16 +53,34 @@ export interface EncarCarBase {
     transmissionName?: string;
     colorName?: string;
     bodyName?: string;
-    tradeType?: 'D' | 'I';
+    /**
+     * `'D'` dealer, `'I'` individual (consignment), `null` when omitted by
+     * Encar — personal listings (sample 006) set this to `null`, not `'I'`.
+     */
+    tradeType?: 'D' | 'I' | null;
   };
   condition?: {
     accident?: { recordView: boolean };
     seizing?: { mortgage: number; seizing: number };
   };
-  contact?: { address?: string; phone?: string };
-  partnership?: { dealer?: { name: string; shop: string } };
+  contact?: {
+    address?: string;
+    phone?: string;
+    /**
+     * `'CLIENT'` for personal sellers, `'DEALER'` for dealers. Central
+     * discriminator for the dealer-vs-personal branch in `encar-to-facts`.
+     */
+    userType?: EncarUserType;
+    isVerifyOwner?: boolean;
+    isOwnerPartner?: boolean;
+  };
+  partnership?: {
+    dealer?: { name: string; shop: string } | null;
+    isPartneredVehicle?: boolean;
+  };
   manage?: { regDate?: string; viewCnt?: number; wishCnt?: number };
-  vin?: string;
+  /** Personal listings omit this — treat `null` as "not disclosed", not missing. */
+  vin?: string | null;
   vehicleNo?: string;
 }
 
@@ -47,6 +88,12 @@ export interface DetailFlags {
   isInsuranceExist: boolean;
   isHistoryView: boolean;
   isDiagnosisExist: boolean;
+  /**
+   * `true` for all dealer listings, `false` for personal (sample 006). This
+   * is the *authoritative* discriminator; `spec.tradeType` is too loose
+   * (can be `null` on personal) and `partnership.dealer` can be null on
+   * dealer-seller listings too.
+   */
   isDealer?: boolean;
 }
 

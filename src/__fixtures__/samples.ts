@@ -217,6 +217,122 @@ export const sample004: EncarParsedData = {
   },
 };
 
+// ── Sample 006: BMW G30 개인매물 (CLIENT) — R08 KILLER + R10 WARN ──
+// First personal (non-dealer) fixture. Proves that R03 must NOT fire as a
+// KILLER on personal listings (they cannot get Encar diagnosis). Mirrors
+// docs/discovery/encar/samples/006-bmw-g30-530i-individual-seller.md.
+export const sample006: EncarParsedData = {
+  schemaVersion: 1,
+  source: 'encar',
+  url: 'https://fem.encar.com/cars/detail/41707401',
+  carId: '41707401',
+  vehicleId: 41707401,
+  vehicleNo: '20소5501',
+  fetchedAt: ts,
+  loginState: 'logged_in',
+  raw: {
+    base: value({
+      category: {
+        manufacturerName: 'BMW',
+        modelGroupName: '5시리즈',
+        modelName: '5시리즈 (G30)',
+        gradeName: '530i xDrive M 스포츠 플러스',
+        yearMonth: '201706',
+        formYear: '2017',
+        newPrice: 7480,
+        domestic: false,
+        importType: 'NONE_IMPORT_TYPE',
+      },
+      advertisement: {
+        price: 2250,
+        preVerified: false,
+        trust: [],
+        diagnosisCar: false,
+        advertisementType: 'NORMAL',
+      },
+      spec: {
+        mileage: 105_000,
+        fuelName: '가솔린',
+        tradeType: null, // personal listing — NOT 'I'
+      },
+      contact: {
+        address: '대구 남구',
+        userType: 'CLIENT', // ← the personal-listing discriminator
+        isVerifyOwner: true,
+        isOwnerPartner: false,
+      },
+      partnership: {
+        dealer: null,
+        isPartneredVehicle: false,
+      },
+      vin: null,
+    }),
+    detailFlags: value({
+      isInsuranceExist: true,
+      isHistoryView: true,
+      isDiagnosisExist: false, // would normally KILLER R03 — but personal path skips
+      isDealer: false, // ← the primary discriminator
+    }),
+    recordApi: value(
+      emptyRecord({
+        // recordApi IS available for personal listings (verified via live
+        // Playwright hit on carId=41707401). Only diagnosis/inspection 404.
+        loan: 0,
+        business: 0,
+        government: 0,
+        ownerChangeCnt: 3,
+        myAccidentCnt: 4,
+        otherAccidentCnt: 2,
+        myAccidentCost: 16_740_000, // 1,674만원 — 매가의 74%
+        otherAccidentCost: 1_200_000,
+        notJoinDate1: '202011~202012',
+        notJoinDate2: '202412~202501',
+        accidentCnt: 6,
+      }),
+    ),
+    diagnosisApi: { kind: 'parse_failed', reason: 'no_report_for_personal' },
+    inspectionApi: { kind: 'parse_failed', reason: 'no_report_for_personal' },
+  },
+};
+
+// ── Synthetic personal-listing PASS sample — same brand, clean ledger ─
+// Used to prove that an otherwise-ideal personal listing verdicts as
+// UNKNOWN (not OK — R03 is unknown, not pass) and never triggers R03/R04
+// as a killer. If this ever verdict to NEVER we have a regression.
+export const samplePersonalClean: EncarParsedData = {
+  schemaVersion: 1,
+  source: 'encar',
+  url: 'https://fem.encar.com/cars/detail/99999999',
+  carId: '99999999',
+  vehicleId: 99999999,
+  vehicleNo: '99가9999',
+  fetchedAt: ts,
+  loginState: 'logged_in',
+  raw: {
+    base: value({
+      category: {
+        manufacturerName: '현대',
+        modelName: '아반떼',
+        yearMonth: '202401',
+        newPrice: 2500,
+        domestic: true,
+      },
+      advertisement: { price: 2200, preVerified: false, trust: [] },
+      spec: { mileage: 8_000, tradeType: null },
+      contact: { userType: 'CLIENT', isVerifyOwner: true },
+    }),
+    detailFlags: value({
+      isInsuranceExist: true,
+      isHistoryView: true,
+      isDiagnosisExist: false,
+      isDealer: false,
+    }),
+    recordApi: value(emptyRecord()),
+    diagnosisApi: { kind: 'parse_failed', reason: 'no_report_for_personal' },
+    inspectionApi: { kind: 'parse_failed', reason: 'no_report_for_personal' },
+  },
+};
+
 // ── Synthetic ideal PASS sample ─────────────────────────────────
 export const sampleIdeal: EncarParsedData = {
   schemaVersion: 1,

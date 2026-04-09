@@ -6,6 +6,14 @@ import type { EncarParsedData } from '../types/ParsedData.js';
 import type { RuleReport } from '../types/RuleTypes.js';
 import type { ChecklistFacts } from '../types/ChecklistFacts.js';
 
+/** HTTP status for each api.encar.com fetch, shared across contexts. */
+export type FetchStatus =
+  | 'ok'
+  | 'not_found'
+  | 'unauthorized'
+  | 'error'
+  | 'skipped';
+
 export interface InPageData {
   preloadedState: unknown;
   nextData?: unknown;
@@ -13,6 +21,12 @@ export interface InPageData {
   recordJson?: unknown;
   diagnosisJson?: unknown;
   inspectionJson?: unknown;
+  /** Per-endpoint HTTP status to distinguish 404 (personal listing) from error. */
+  httpStatus?: {
+    recordJson?: FetchStatus;
+    diagnosisJson?: FetchStatus;
+    inspectionJson?: FetchStatus;
+  };
 }
 
 export type Message =

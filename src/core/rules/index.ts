@@ -29,6 +29,9 @@ const REASON_LABEL: Record<string, string> = {
   no_frame_signal: '프레임 신호 없음',
   no_baseline: '신차 가격 정보 없음 (시세 비교 불가)',
   not_derived: '데이터 미수집',
+  not_applicable_personal: '개인매물 — 해당없음',
+  no_report_for_personal: '개인매물 — 엔카 리포트 없음',
+  api_fetch_error: '데이터 수집 오류',
 };
 
 const humanReason = (s: FieldStatus<unknown>): string => {

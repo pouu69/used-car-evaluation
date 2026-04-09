@@ -5,12 +5,24 @@
  */
 import type { Message } from '@/core/messaging/protocol';
 
+type FetchStatus =
+  | 'ok'
+  | 'not_found'
+  | 'unauthorized'
+  | 'error'
+  | 'skipped';
+
 interface MainWorldPayload {
   preloadedState: unknown;
   nextData: unknown;
   recordJson: unknown;
   diagnosisJson: unknown;
   inspectionJson: unknown;
+  httpStatus?: {
+    recordJson: FetchStatus;
+    diagnosisJson: FetchStatus;
+    inspectionJson: FetchStatus;
+  };
   errors: Record<string, string>;
 }
 
@@ -101,6 +113,7 @@ const collect = async (force = false): Promise<void> => {
         recordJson: payload.recordJson,
         diagnosisJson: payload.diagnosisJson,
         inspectionJson: payload.inspectionJson,
+        httpStatus: payload.httpStatus,
       },
     };
     chrome.runtime.sendMessage(msg).catch((e) =>

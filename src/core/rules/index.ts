@@ -140,20 +140,31 @@ export const r04: Rule = (f) => {
 
 export const r05: Rule = (f) => {
   const s = f.usageHistory;
-  if (!isValue(s)) return unknownResult('R05', '렌트/택시 이력 없음', s);
+  if (!isValue(s)) return unknownResult('R05', '렌트/택시/영업 이력', s);
   const { rental, taxi, business } = s.value;
-  if (rental || taxi || business) {
+  // 렌트·택시는 강한 상용 운행 → killer.
+  // 관용(business)은 차급·관리이력이 오히려 양호한 경우가 많아 warn 으로 완화.
+  if (rental || taxi) {
     const tags: string[] = [];
     if (rental) tags.push('렌트');
     if (taxi) tags.push('영업용');
-    if (business) tags.push('관용');
     return {
       ruleId: 'R05',
-      title: '렌트/택시/영업 이력 없음',
+      title: '렌트/택시 이력',
       severity: 'killer',
       message: `🚨 ${tags.join('/')} 이력이 확인되었습니다`,
       evidence: [ev('usageHistory', s.value)],
       acknowledgeable: true,
+    };
+  }
+  if (business) {
+    return {
+      ruleId: 'R05',
+      title: '관용 이력',
+      severity: 'warn',
+      message: '⚠ 관용 이력이 확인되었습니다 (관리이력은 양호할 수 있음)',
+      evidence: [ev('usageHistory', s.value)],
+      acknowledgeable: false,
     };
   }
   return {
@@ -199,22 +210,26 @@ export const r06: Rule = (f) => {
 
 export const r07: Rule = (f) => {
   const s = f.ownerChangeCount;
-  if (!isValue(s)) return unknownResult('R07', '1인 신조', s);
-  if (s.value <= 1) {
+  if (!isValue(s)) return unknownResult('R07', '소유자 변경', s);
+  // 2회까지는 실사용 패턴으로 흔함. 3회 이상부터 warn.
+  if (s.value <= 2) {
     return {
       ruleId: 'R07',
-      title: '1인 신조',
+      title: '소유자 변경',
       severity: 'pass',
-      message: '소유자 변경이 없거나 1회 입니다',
+      message:
+        s.value === 0
+          ? '소유자 변경이 없습니다'
+          : `소유자 변경 ${s.value}회 (정상 범위)`,
       evidence: [ev('ownerChangeCount', s.value)],
       acknowledgeable: false,
     };
   }
   return {
     ruleId: 'R07',
-    title: '1인 신조',
+    title: '소유자 변경',
     severity: 'warn',
-    message: `소유자 변경 ${s.value}회`,
+    message: `소유자 변경 ${s.value}회 (잦은 편)`,
     evidence: [ev('ownerChangeCount', s.value)],
     acknowledgeable: false,
   };
@@ -235,11 +250,12 @@ export const r08: Rule = (f) => {
       }
     : {
         ruleId: 'R08',
-        title: '자차보험 공백 없음',
-        severity: 'killer',
-        message: '🚨 자차보험 미가입 기간이 존재합니다',
+        title: '자차보험 공백',
+        severity: 'warn',
+        message:
+          '⚠ 자차보험 미가입 기간이 존재합니다 (사고 신호는 R04/R06/R10 별도 확인)',
         evidence: [ev('insuranceGap', true)],
-        acknowledgeable: true,
+        acknowledgeable: false,
       };
 };
 
@@ -267,35 +283,46 @@ export const r09: Rule = (f) => {
 
 export const r10: Rule = (f) => {
   const s = f.minorAccidents;
-  if (!isValue(s)) return unknownResult('R10', '자잘한 사고 처리', s);
+  if (!isValue(s)) return unknownResult('R10', '보험처리 규모', s);
   const { ownDamageWon, otherDamageWon, domestic } = s.value;
-  const threshold = domestic ? 1_000_000 : 2_000_000;
-  const max = Math.max(ownDamageWon, otherDamageWon);
-  if (max === 0) {
+
+  if (ownDamageWon === 0 && otherDamageWon === 0) {
     return {
       ruleId: 'R10',
-      title: '자잘한 사고 처리',
+      title: '보험처리 규모',
       severity: 'pass',
       message: '보험 처리 기록이 없습니다',
       evidence: [ev('damages', s.value)],
       acknowledgeable: false,
     };
   }
-  if (max >= threshold) {
+
+  // 경미 상한: 국산 200만원, 수입 400만원.
+  // 이하면 '경미', 초과면 '주의'. 임계 단일값은 없고 range 기반 표기.
+  const mildCeiling = domestic ? 2_000_000 : 4_000_000;
+  const bracketLabel = domestic ? '국산 200만원' : '수입 400만원';
+  const max = Math.max(ownDamageWon, otherDamageWon);
+
+  const fmtMan = (won: number): string =>
+    won === 0 ? '0원' : `${Math.round(won / 10_000).toLocaleString()}만원`;
+  const breakdown = `내차 ${fmtMan(ownDamageWon)} · 타차 ${fmtMan(otherDamageWon)}`;
+
+  if (max > mildCeiling) {
     return {
       ruleId: 'R10',
-      title: '자잘한 사고 처리',
+      title: '보험처리 규모',
       severity: 'warn',
-      message: `⚠ 보험처리 금액 ${max.toLocaleString()}원 (임계 ${threshold.toLocaleString()}원)`,
+      message: `⚠ 주의 범위 (${bracketLabel} 초과) · ${breakdown}`,
       evidence: [ev('damages', s.value)],
       acknowledgeable: false,
     };
   }
+
   return {
     ruleId: 'R10',
-    title: '자잘한 사고 처리',
+    title: '보험처리 규모',
     severity: 'pass',
-    message: `보험처리 ${max.toLocaleString()}원 (임계 미만)`,
+    message: `경미 범위 (${bracketLabel} 이하) · ${breakdown}`,
     evidence: [ev('damages', s.value)],
     acknowledgeable: false,
   };
@@ -310,7 +337,9 @@ export const r11: Rule = (f) => {
       kind: 'parse_failed',
       reason: 'no_baseline',
     });
-  if (ratio < 0.5) {
+  // 옵션·연식이 낮으면 100% 초과는 흔함 → 115%부터 과한 가격으로 경고.
+  // 45% 미만은 여전히 사고매물/이상매물 가능성 ↑.
+  if (ratio < 0.45) {
     return {
       ruleId: 'R11',
       title: '가격 적정성',
@@ -320,7 +349,7 @@ export const r11: Rule = (f) => {
       acknowledgeable: false,
     };
   }
-  if (ratio > 1.0) {
+  if (ratio > 1.15) {
     return {
       ruleId: 'R11',
       title: '가격 적정성',

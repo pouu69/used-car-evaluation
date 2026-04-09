@@ -112,12 +112,17 @@ const collectFor = async (
   const db = getDb();
   const cached = await db.cache.get(carId);
   if (cached && cached.expiresAt > Date.now()) {
+    // facts/report는 규칙 엔진이 계속 바뀔 수 있으므로 매 캐시 히트마다
+    // parsed로부터 재계산한다. (cache에 남은 구버전 보고서를 그대로 리턴하면
+    // 규칙 로직 업데이트가 화면에 반영되지 않아 혼란스럽다.)
+    const facts = encarToFacts(cached.parsed);
+    const report = evaluate(facts);
     return {
       type: 'COLLECT_RESULT',
       carId,
       parsed: cached.parsed,
-      facts: cached.facts,
-      report: cached.report,
+      facts,
+      report,
     };
   }
 

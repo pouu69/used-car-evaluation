@@ -10,6 +10,9 @@ dist/
 # App icons — shipped with the extension
 !public/icons/*.png
 
+# README screenshots — committed so GitHub renders them
+!screenshot/*.png
+
 # Tooling
 .superpowers/
 .omc/

@@ -9,18 +9,36 @@ import { orchestrate } from '@/core/parsers/encar/index';
 import { encarToFacts } from '@/core/bridge/encar-to-facts';
 import { evaluate } from '@/core/rules/index';
 import { CACHE_TTL_MS, getDb, sweepExpired } from '@/core/storage/db';
-import { isMessage, type Message } from '@/core/messaging/protocol';
+import {
+  isAckRule,
+  isCollectForTab,
+  isCollectRequest,
+  isGetLast,
+  isMessage,
+  isRefresh,
+  type Message,
+} from '@/core/messaging/protocol';
 import {
   mainWorldCollect,
   type MainWorldPayload,
   type FetchStatus,
 } from './main-world-collector';
+import { createLogger } from '@/core/log';
 
-const fetchText = async (
+const logger = createLogger('autoverdict:bg');
+
+/**
+ * Shared fetch-with-timeout helper. Combines an outer abort signal with an
+ * inner per-request timeout and a pluggable response parser. Errors, aborts
+ * and non-2xx responses all collapse to `null` — the caller is responsible
+ * for treating `null` as "unavailable".
+ */
+const fetchWithTimeout = async <T>(
   url: string,
   signal: AbortSignal,
+  parse: (r: Response) => Promise<T>,
   perRequestMs = 8_000,
-): Promise<string | null> => {
+): Promise<T | null> => {
   const innerAc = new AbortController();
   const timer = setTimeout(() => innerAc.abort(), perRequestMs);
   const onOuter = () => innerAc.abort();
@@ -31,7 +49,7 @@ const fetchText = async (
       signal: innerAc.signal,
     });
     if (!r.ok) return null;
-    return await r.text();
+    return await parse(r);
   } catch {
     return null;
   } finally {
@@ -40,29 +58,21 @@ const fetchText = async (
   }
 };
 
-const fetchJson = async (
+// Thin wrappers preserved for future consumers; fetchWithTimeout is the
+// single source of truth for timeout / abort / error semantics.
+export const fetchText = (
   url: string,
   signal: AbortSignal,
   perRequestMs = 8_000,
-): Promise<unknown | null> => {
-  const innerAc = new AbortController();
-  const timer = setTimeout(() => innerAc.abort(), perRequestMs);
-  const onOuter = () => innerAc.abort();
-  signal.addEventListener('abort', onOuter);
-  try {
-    const r = await fetch(url, {
-      credentials: 'include',
-      signal: innerAc.signal,
-    });
-    if (!r.ok) return null;
-    return await r.json();
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-    signal.removeEventListener('abort', onOuter);
-  }
-};
+): Promise<string | null> =>
+  fetchWithTimeout(url, signal, (r) => r.text(), perRequestMs);
+
+export const fetchJson = <T = unknown>(
+  url: string,
+  signal: AbortSignal,
+  perRequestMs = 8_000,
+): Promise<T | null> =>
+  fetchWithTimeout<T>(url, signal, (r) => r.json() as Promise<T>, perRequestMs);
 
 const broadcast = (msg: Message) => {
   chrome.runtime.sendMessage(msg).catch(() => {});
@@ -86,7 +96,7 @@ const runMainWorldCollect = async (
     if (!first) return null;
     return (first.result as MainWorldPayload) ?? null;
   } catch (err) {
-    console.error('[autoverdict] executeScript failed', err);
+    logger.error('executeScript failed', err);
     return null;
   }
 };
@@ -225,7 +235,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
   };
 
-  if (msg.type === 'COLLECT_REQUEST') {
+  if (isCollectRequest(msg)) {
     runCollectJob(
       msg.carId,
       msg.url,
@@ -235,18 +245,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (msg.type === 'COLLECT_FOR_TAB') {
+  if (isCollectForTab(msg)) {
     runCollectJob(msg.carId, msg.url, { tabId: msg.tabId }, sendResponse);
     return true;
   }
 
-  if (msg.type === 'REFRESH') {
+  if (isRefresh(msg)) {
     getDb().cache.delete(msg.carId).catch(() => {});
     sendResponse({ ok: true });
     return false;
   }
 
-  if (msg.type === 'GET_LAST') {
+  if (isGetLast(msg)) {
     (async () => {
       const db = getDb();
       const row = msg.carId
@@ -266,7 +276,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return true;
   }
 
-  if (msg.type === 'ACK_RULE') {
+  if (isAckRule(msg)) {
     const now = Date.now();
     getDb()
       .acks.put({

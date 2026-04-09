@@ -15,38 +15,21 @@ declare global {
 }
 
 /**
- * HTTP status for each api.encar.com call.
+ * HTTP status for each api.encar.com call (shared across contexts).
+ * `Payload` is the MAIN-world → isolated-content → background envelope.
  *
- * `'ok'`            — 2xx + valid JSON body.
- * `'not_found'`     — 404. Personal (CLIENT) listings return 404 from
- *                     `/diagnosis/` and `/inspection/` because those
- *                     endpoints only exist for dealer-attached cars.
- * `'unauthorized'`  — 401/403, login required.
- * `'error'`         — 5xx, network failure, parse error, or timeout.
- * `'skipped'`       — call was never attempted (e.g. no vehicleId).
+ * Type-only imports are safe here: they are erased at compile time, so
+ * nothing from `@/core/messaging/*` runs in the page MAIN world.
  */
-export type FetchStatus =
-  | 'ok'
-  | 'not_found'
-  | 'unauthorized'
-  | 'error'
-  | 'skipped';
+import type {
+  FetchStatus,
+  MainWorldPayload as Payload,
+} from '@/core/messaging/main-world';
+import { createLogger } from '@/core/log';
 
-interface Payload {
-  preloadedState: unknown;
-  nextData: unknown;
-  recordJson: unknown;
-  diagnosisJson: unknown;
-  inspectionJson: unknown;
-  httpStatus: {
-    recordJson: FetchStatus;
-    diagnosisJson: FetchStatus;
-    inspectionJson: FetchStatus;
-  };
-  errors: Record<string, string>;
-}
+export type { FetchStatus };
 
-const log = (...args: unknown[]) => console.log('[autoverdict:main]', ...args);
+const { log } = createLogger('autoverdict:main');
 
 const readNextData = (): unknown => {
   const el = document.getElementById('__NEXT_DATA__');

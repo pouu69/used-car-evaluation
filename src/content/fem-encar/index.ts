@@ -3,32 +3,38 @@
  * (including api.encar.com JSON already fetched in page context) to the
  * background service worker.
  */
-import type { Message } from '@/core/messaging/protocol';
+import { isRefresh, type Message } from '@/core/messaging/protocol';
+import type { MainWorldPayload } from '@/core/messaging/main-world';
+import { extractCarId as extractCarIdFromUrl } from '@/core/encar/url';
+import { createLogger } from '@/core/log';
 
-type FetchStatus =
-  | 'ok'
-  | 'not_found'
-  | 'unauthorized'
-  | 'error'
-  | 'skipped';
+const logger = createLogger('autoverdict:content');
 
-interface MainWorldPayload {
-  preloadedState: unknown;
-  nextData: unknown;
-  recordJson: unknown;
-  diagnosisJson: unknown;
-  inspectionJson: unknown;
-  httpStatus?: {
-    recordJson: FetchStatus;
-    diagnosisJson: FetchStatus;
-    inspectionJson: FetchStatus;
+const extractCarId = (): string | null =>
+  extractCarIdFromUrl(location.href);
+
+/**
+ * Narrow type guard for the `window.postMessage` envelope we receive from the
+ * MAIN-world script. Returns the payload when the shape is valid, otherwise
+ * `null` so the caller can ignore unrelated messages safely.
+ */
+const parseMainWorldMessage = (
+  data: unknown,
+  expectedReqId: string,
+): { payload: MainWorldPayload | null } | null => {
+  if (typeof data !== 'object' || data === null) return null;
+  const obj = data as {
+    source?: unknown;
+    kind?: unknown;
+    reqId?: unknown;
+    payload?: unknown;
   };
-  errors: Record<string, string>;
-}
-
-const extractCarId = (): string | null => {
-  const m = /\/cars\/detail\/(\d+)/.exec(location.pathname);
-  return m?.[1] ?? null;
+  if (obj.source !== 'autoverdict/main-world' || obj.kind !== 'state') {
+    return null;
+  }
+  const { reqId } = obj;
+  if (reqId !== expectedReqId && reqId !== null) return null;
+  return { payload: (obj.payload as MainWorldPayload | undefined) ?? null };
 };
 
 let lastCarId: string | null = null;
@@ -50,19 +56,9 @@ const requestMainWorldPayload = (
     // null) AND any reqId-matched reply. This avoids waiting for a specific
     // reqId reply when main-world already cached the payload.
     const onMessage = (e: MessageEvent) => {
-      const data = e.data;
-      if (
-        e.source === window &&
-        typeof data === 'object' &&
-        data !== null &&
-        (data as { source?: string }).source === 'autoverdict/main-world' &&
-        (data as { kind?: string }).kind === 'state'
-      ) {
-        const inReqId = (data as { reqId?: string | null }).reqId;
-        if (inReqId === reqId || inReqId === null) {
-          finish((data as { payload?: MainWorldPayload }).payload ?? null);
-        }
-      }
+      if (e.source !== window) return;
+      const parsed = parseMainWorldMessage(e.data, reqId);
+      if (parsed) finish(parsed.payload);
     };
     window.addEventListener('message', onMessage);
     window.postMessage(
@@ -89,13 +85,13 @@ const collect = async (force = false): Promise<void> => {
 
   try {
     const reqId = `r${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    console.log('[autoverdict:iso] collect start', { carId, reqId });
+    logger.log('collect start', { carId, reqId });
     const payload = await requestMainWorldPayload(reqId);
     if (!payload) {
-      console.warn('[autoverdict:iso] main-world payload null (timeout)');
+      logger.warn('main-world payload null (timeout)');
       return;
     }
-    console.log('[autoverdict:iso] payload received', {
+    logger.log('payload received', {
       hasState: !!payload.preloadedState,
       hasRecord: !!payload.recordJson,
       hasDiagnosis: !!payload.diagnosisJson,
@@ -117,7 +113,7 @@ const collect = async (force = false): Promise<void> => {
       },
     };
     chrome.runtime.sendMessage(msg).catch((e) =>
-      console.error('[autoverdict:iso] sendMessage failed', e),
+      logger.error('sendMessage failed', e),
     );
   } finally {
     setTimeout(() => {
@@ -146,12 +142,7 @@ window.addEventListener('popstate', onUrlChange);
 window.addEventListener('autoverdict:urlchange', onUrlChange);
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (
-    typeof msg === 'object' &&
-    msg !== null &&
-    'type' in msg &&
-    (msg as Message).type === 'REFRESH'
-  ) {
+  if (isRefresh(msg)) {
     void collect(true);
     sendResponse({ ok: true });
   }

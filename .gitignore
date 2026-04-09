@@ -7,6 +7,9 @@ dist/
 *.png
 *-snapshot.yml
 
+# App icons — shipped with the extension
+!public/icons/*.png
+
 # Tooling
 .superpowers/
 .omc/

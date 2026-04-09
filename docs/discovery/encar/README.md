@@ -1,10 +1,52 @@
 # Encar Discovery — 통합 정리
 
-**Version**: v1 (2026-04-07)
-**Status**: Phase 0 Discovery 완료 — Section 3 (Collection Pipeline) 설계 입력 문서
-**Scope**: `fem.encar.com` (메인 상세) + `car.encar.com` (히스토리)
-**Samples**: 4건 (001 스포티지 · 002/003 팰리세이드 · 004 BMW E90)
-**Core Principle**: **AI-free 결정론적 파서** — LLM/비전 없이 DOM + JSON만 사용
+**Version**: v2 (2026-04-09)
+**Status**: Phase 0 → Post-pivot → 개인매물 분기까지 반영
+**Scope**: `fem.encar.com` (메인 상세) + `api.encar.com` (구조화 API)
+**Samples**: 6건 (001 스포티지 · 002/003 팰리세이드 · 004 BMW E90 · 005 BMW G30 딜러 · **006 BMW G30 개인(CLIENT)** · 007 TBD)
+**Core Principle**: **AI-free 결정론적 파서** — LLM/비전 없이 JSON + 최소 DOM만 사용
+
+> ⚠️ **Post-pivot notice (2026-04-08 / 04-09)**: 이 문서의 §2~§6 본문은 **Phase 0 discovery 시점**의 듀얼 레이어(state-first + DOM-second) 전략을 기록한다. 이후 실제 구현은 다음 두 단계를 거쳐 바뀌었다:
+>
+> 1. **API 피벗 (2026-04-08)**: `api.encar.com/v1/readside/{record,diagnosis,inspection}/vehicle/{id}` 공식 JSON 엔드포인트를 발견 → HTML 리포트 스크래핑(S4/S5/S6) 을 전부 제거하고 구조화 JSON 으로 대체. 세부는 `docs/design/DESIGN.md` §3/§4 참조.
+> 2. **개인매물 분기 (2026-04-09)**: Sample 006 수집에서 개인(CLIENT) 매물은 `/diagnosis/` 와 `/inspection/` 이 **HTTP 404** 를 반환하고 `record` 만 동작함을 발견 → bridge 레이어에 `isPersonalListing()` + **F5 불변식** 추가. R03/R04 는 개인매물에 대해 `unknown` severity 로 라우팅, R05~R10 은 딜러·개인 양쪽 모두 `record` API 로 동작. 자세한 사항은 `samples/006-*.md` 참조.
+>
+> **현재 상태의 진실의 원천은 `docs/design/DESIGN.md` v2.1**. 이 디스커버리 문서는 역사 기록 + 샘플 카탈로그로 계속 유지된다.
+
+---
+
+## 0. 샘플 카탈로그 (최신 순)
+
+| # | 차량 | 판매자 | 핵심 발견 | 파일 |
+|---|---|---|---|---|
+| 006 | BMW 5시리즈 G30 530i | **개인(CLIENT)** | 첫 비딜러 샘플. inspection/diagnosis API 는 404. `contact.userType='CLIENT'`, `detailFlags.isDealer=false`, `spec.tradeType=null`, `importType='NONE_IMPORT_TYPE'`. **F5 불변식 유발** | [006](samples/006-bmw-g30-530i-individual-seller.md) |
+| 005 | BMW 5시리즈 G30 530i | 딜러 | 엔카진단 없는 외제 딜러. `/inspection/` 응답 구조 완전 관찰 — `master.detail.{waterlog, recall, tuning}`, `outers[].statusTypes` (교환/판금/부식). 히스토리 `release` 스키마 확장: `nation`, `use`, `fuel`, `cityConsumption` | [005](samples/005-bmw-g30-530i-no-diagnosis-insurance-gap.md) |
+| 004 | BMW 3시리즈 E90 328i | 딜러 | 첫 외제차 샘플. **법인 ≠ 렌트** 반증 (F1 불변식 본거지). 19년차 고주행 | [004](samples/004-bmw-e90-old-high-mileage.md) |
+| 003 | 현대 팰리세이드 2.2 | 딜러 | R10 타차가해 257만원 외제 임계값 검증. `tradeType='D'` | [003](samples/003-palisade-22-rental.md) |
+| 002 | 현대 팰리세이드 | 딜러 | `isDiagnosisExist=false`, 비정상 날짜(`3000년`) | [002](samples/002-palisade-no-diagnosis-rental.md) |
+| 001 | 기아 스포티지 5세대 | 딜러 | 최초 샘플. R05 + R08 두 killer 완비. `__PRELOADED_STATE__`/`__NEXT_DATA__` 발견 | [001](samples/001-sportage-rental-killer.md) |
+
+### 0.1 6 샘플을 통해 확정된 enum 카탈로그
+
+```typescript
+type EncarUserType    = 'CLIENT' | 'DEALER';            // 'PERSONAL' 은 관측되지 않음
+type EncarImportType  = 'REGULAR_IMPORT' | 'BRAND_IMPORT' | 'NONE_IMPORT_TYPE';
+type EncarAdType      = 'AD_NORMAL' | 'NORMAL';         // 005 vs 006 차이
+type EncarTradeType   = 'D' | 'I' | null;               // 개인매물은 null (not 'I')
+type EncarImportNation = '오스트리아' | '독일' | '일본' | /* ... 지속 확장 */ string;
+```
+
+### 0.2 딜러 vs 개인매물 엔드포인트 가용성 (Sample 006 실측)
+
+| 엔드포인트 | 딜러 | 개인(CLIENT) |
+|---|---|---|
+| `__PRELOADED_STATE__.cars.base` | ✅ | ✅ (`vin=null`, `tradeType=null`) |
+| `/readside/record/vehicle/{id}/open` | ✅ | **✅** (041707401 실측: 사고 4건 + 보험공백 2건 반환) |
+| `/readside/diagnosis/vehicle/{id}` | ✅ | ❌ **HTTP 404** |
+| `/readside/inspection/vehicle/{id}` | ✅ | ❌ **HTTP 404** |
+| `car.encar.com/history?carId={id}` (uiData) | ✅ | ✅ |
+
+→ 파서는 404 를 네트워크 오류와 구분해 `FetchStatus='not_found'` 로 마킹하고, orchestrate 단에서 `parse_failed('no_report_for_personal')` 로 변환. bridge 의 `isPersonalListing()` 가 R03 을 KILLER 대신 `unknown` 으로 라우팅.
 
 ---
 
@@ -239,10 +281,15 @@ const INSPECT_LABELS = new Set([
 | (R12 리콜) | `item.caution.recall` + enlogData `recall` | S3 | ✅ | 🟢 High (부가) |
 | (R13 노후/고주행) | `category.yearMonth` + `spec.mileage` | S1 | X | 🟢 High (부가) |
 
-**해석**:
+**해석 (Phase 0 기준, 아래 post-pivot 업데이트 참조)**:
 - 로그인 없이 얻을 수 있는 건 **R01~R04, R11, R13** — 약 6개.
 - **R05, R08 (킬러)**을 비롯한 나머지는 **전부 로그인 필수**. → 익스텐션은 로그인 유도 UX 필수.
 - 로그인 미상태에서 킬러 룰은 `FieldStatus.parse_failed{reason: 'login_required'}`로 표시하고 사용자에게 로그인 CTA 노출.
+
+> 🔄 **Post-pivot 수정 (2026-04-08)**: 위 해석은 틀렸다. `api.encar.com/v1/readside/record/vehicle/{id}/open` 엔드포인트의 `open` 쿼리 필드 덕분에 **R05~R10 전부 로그인 없이 동작**. 현재 실상:
+> - 딜러 매물: 11 룰 모두 로그인 없이 판정 가능
+> - 개인(CLIENT) 매물: R01/R02/R05~R10 은 로그인 없이 판정, R03/R04 는 API 원천 부재로 `unknown` 고정 (F5)
+> - 즉 실제로 로그인이 필요한 룰은 **없다**. 로그인 유도 UX 는 제거됨.
 
 ## 6. 엣지 케이스 카탈로그
 
@@ -253,9 +300,11 @@ const INSPECT_LABELS = new Set([
 - **Lazy-load 비어있음**: `cars.diagnosis.items` 등 초기 빈 배열 → DOM 폴백.
 
 ### 6.2 잘못된 추론 피하기
-- **법인 != 렌터카**: Sample 004 BMW는 `release.flag='CORPORATION'` 이지만 `driveCaution.rent=false`. **반드시 `rent` 플래그 직접 사용**.
+- **법인 != 렌터카**: Sample 004 BMW는 `release.flag='CORPORATION'` 이지만 `driveCaution.rent=false`. **반드시 `rent` 플래그 직접 사용** (post-pivot: `recordApi.loan/business/government` 정수 사용, F1 불변식).
 - **`type='repair'` ≠ 사고**: `insurance[].contents[].type` 는 `'insurance' | 'repair'`. 사고 카운트는 `insurance`만.
 - **"보험 0건" ≠ 무사고**: Sample 001은 보험 0건이지만 자차보험 자체가 없어서 집계 불가. → `no_insurance` 먼저 체크.
+- **개인매물 ≠ tradeType='I'**: Sample 006 관측 — 개인(CLIENT) 매물의 `spec.tradeType` 은 `null`. 딜러는 `'D'`, `'I'` 는 위탁판매(consignment) 라 실제로는 잘 안 보임. 개인 판별은 `contact.userType === 'CLIENT'` 또는 `detailFlags.isDealer === false` 로 해야 한다 (F5).
+- **`isDiagnosisExist=false` ≠ KILLER**: 딜러 매물이면 KILLER 맞지만, 개인매물이면 엔카진단 자체를 받을 수 없는 구조 → `unknown` 으로 라우팅해야 한다.
 
 ### 6.3 로그인 상태 감지
 - `로그인 후 확인` 텍스트가 페이지에 존재 → `login_required`
@@ -272,14 +321,27 @@ const INSPECT_LABELS = new Set([
 
 ## 7. 샘플 카탈로그
 
-| # | 차량 | 주요 학습 |
-|---|---|---|
-| [001](samples/001-sportage-rental-killer.md) | 기아 스포티지 5세대 (2021) | `__PRELOADED_STATE__`, `uiData`, 두 도메인 연결, R05+R08 트리거 |
-| [002](samples/002-palisade-no-diagnosis-rental.md) | 현대 팰리세이드 (2023) | `isDiagnosisExist=false`, `insurance.type`, 리콜 타임라인, 비정상 날짜 |
-| [003](samples/003-palisade-22-rental.md) | 현대 팰리세이드 2.2 (2022) | 타차가해 257만원 R10 WARN, `tradeType='D'`, `변경등록` 이벤트 |
-| [004](samples/004-bmw-e90-old-high-mileage.md) | BMW 3시리즈 E90 (2007) | 외제차 (`domestic=false`), DOM 진단 상세 파싱, 법인≠렌트 반증, 노후/고주행 |
+> ℹ️ 이 표는 §0 의 최신순 카탈로그를 발견 순으로 다시 본다. 007 이후는 §0 만 업데이트한다.
 
-## 8. 파서 아키텍처 함의 (Section 3 입력)
+| # | 차량 | 판매자 | 주요 학습 |
+|---|---|---|---|
+| [001](samples/001-sportage-rental-killer.md) | 기아 스포티지 5세대 (2021) | 딜러 | `__PRELOADED_STATE__`, `uiData`, 두 도메인 연결, R05+R08 트리거 |
+| [002](samples/002-palisade-no-diagnosis-rental.md) | 현대 팰리세이드 (2023) | 딜러 | `isDiagnosisExist=false`, `insurance.type`, 리콜 타임라인, 비정상 날짜 |
+| [003](samples/003-palisade-22-rental.md) | 현대 팰리세이드 2.2 (2022) | 딜러 | 타차가해 257만원 R10 WARN, `tradeType='D'`, `변경등록` 이벤트 |
+| [004](samples/004-bmw-e90-old-high-mileage.md) | BMW 3시리즈 E90 (2007) | 딜러 | 외제차 (`domestic=false`), DOM 진단 상세 파싱, **법인 ≠ 렌트** (F1), 노후/고주행 |
+| [005](samples/005-bmw-g30-530i-no-diagnosis-insurance-gap.md) | BMW 5시리즈 G30 530i (2019) | 딜러 | 엔카진단 없는 외제 딜러, `/inspection/` 응답 구조 완전 관찰 (`master.detail.waterlog`, `outers[].statusTypes`), `release` 스키마 확장 (`nation`, `use`, `fuel`, `cityConsumption`) |
+| [006](samples/006-bmw-g30-530i-individual-seller.md) | BMW 5시리즈 G30 530i (2017) | **개인(CLIENT)** | **첫 비딜러 샘플** — inspection/diagnosis API 는 404, record API 는 동작. `contact.userType='CLIENT'`, `isDealer=false`, `tradeType=null`, `vin=null`, `importType='NONE_IMPORT_TYPE'`. **F5 불변식 유발** |
+
+## 8. 파서 아키텍처 함의 (Phase 0 기준, 실제 구현은 `DESIGN.md` §4 참조)
+
+> 🔄 아래 §8 은 Phase 0 설계 입력이고, 실제 수집 파이프라인은 `docs/design/DESIGN.md` §4 로 대체됐다. 핵심 변경:
+>
+> - **MAIN world 주입** (`chrome.scripting.executeScript`) 으로 `fem.encar.com` 컨텍스트에서 직접 `api.encar.com` 호출 → CORS 우회
+> - **`credentials: 'include'` 금지** — api.encar.com 의 CORS preflight 가 거부함. default `fetch(url)` 이 same-site 쿠키를 자동 포함
+> - `FetchStatus` (`ok | not_found | unauthorized | error | skipped`) 를 각 엔드포인트별로 기록 → 404(개인매물) ≠ 네트워크 에러 구분
+> - HTML 리포트 파싱(S4/S5/S6) 은 **전부 삭제**. `api.encar.com/v1/readside/{record,diagnosis,inspection}/vehicle/{id}` JSON 으로 대체
+
+**Phase 0 원본 설계** (역사 참고):
 
 1. **Content Script 주입 도메인**: `fem.encar.com/*`, `car.encar.com/*` 모두 `manifest.host_permissions` 에 포함.
 2. **State machine**:
@@ -293,23 +355,28 @@ const INSPECT_LABELS = new Set([
 
 ## 9. 미발견 & 후속 디스커버리 필요
 
-- 🔲 **1인신조 + 엔카진단 + 무사고 + 보험공백 없는 이상적 PASS 케이스** — 긍정 샘플 부재.
-- 🔲 **프레임 사고 실매물** — `frameDiag=수리|교환` 값 관측 필요.
+- 🔲 **1인신조 + 엔카진단 + 무사고 + 보험공백 없는 이상적 PASS 케이스** — 긍정 샘플 여전히 없음.
+- 🔲 **프레임 사고 실매물** — `diagnosisApi.items[].resultCode === 'EXCHANGE'` 혹은 `outers[].statusTypes` 에서 `'교환(교체)'` 가 프레임 부위에 달린 케이스.
 - 🔲 **딜러가 보험이력 비공개** 매물 — `isInsuranceExist=false` UI/스키마 관측.
-- 🔲 **전손/침수 매물** — `theft=true` 혹은 enlogData `total_loss`/`flood` 태그.
-- 🔲 **로그인 상태에서의 S3~S6 실제 응답 차이** — 현재 일부 필드는 로그인 없이도 보이는 듯 (검증 필요).
+- 🔲 **전손/침수 매물** — `recordApi.totalLossCnt>0` 또는 `inspectionApi.master.detail.waterlog===true`.
+- 🔲 **개인매물의 `recordApi` 에서 `openData=false` 케이스** — 개인매물이라도 레코드 비공개일 가능성. 현재 006 은 `openData=true`.
+- ✅ **로그인 상태에서의 S3~S6 실제 응답 차이** — 해소됨: API 로 전부 대체되어 로그인이 원천 불필요.
 - 🔲 **시세 비교용 외부 API** (R11) — 가이드에 따라 다른 같은 연식 매물 평균 필요.
 - 🔲 **모바일 뷰 `m.encar.com`** — 스키마/DOM 완전 다를 가능성.
+- 🔲 **법인 소유 개인등록** 엣지 케이스 — `contact.userType='CLIENT'` 이면서 timeline 의 첫 이벤트가 `CORPORATION` 인 케이스가 실제로 있을지.
 
 ## 10. 파서 불변식 (Invariants)
 
-> 다음 불변식을 어기면 파서는 실패로 처리한다.
+> 다음 불변식을 어기면 파서는 실패로 처리한다. 권위 있는 버전은 `docs/design/DESIGN.md` §5.3 (F1–F5).
 
-- `carId` 는 URL path 에서만 추출 (`/cars/detail/(\d+)`). 쿼리스트링 `carid=` 는 보조.
-- `detailFlags.isDiagnosisExist=false` 인데 DOM에서 `프레임 진단정상`을 발견하면 DOM을 **신뢰하지 않음** (불일치 경고 로그).
-- `insurance[].contents[].type` 미지값은 모두 `'unknown'` 으로 bridge에서 제외 (미래 호환성).
-- 모든 금액 필드는 `string` (원본 보존) → bridge에서 숫자 파싱 (쉼표 제거 + `원` 제거).
+- **carId 파싱**: URL path 에서만 추출 (`/cars/detail/(\d+)`). 쿼리스트링 `carid=` 는 보조.
+- **F1 법인 ≠ 렌트**: R05 는 `recordApi.loan/business/government` 정수만 사용. `release.flag==='CORPORATION'` 같은 힌트는 무시 (Sample 004 이 카나리아).
+- **F2 사고 금액 정수**: `recordApi.myAccidentCost`/`otherAccidentCost` 만 사용. HTML insurance entry heuristic 파싱 금지.
+- **F3 날짜 string 그대로**: `3000년 01월 16일` 같은 비정상값이 실제로 오기 때문에 strict parse 금지.
+- **F4 login_required → UI**: `parse_failed('login_required')` 는 "로그인 후 재평가" CTA 로 노출. (현재는 R05~R10 전부 open 이라 실질 트리거 없음.)
+- **F5 딜러 vs 개인 분기**: `isPersonalListing(base, flags)===true` 면 R03 을 `parse_failed('not_applicable_personal')` 로, R04 는 API 원천 부재로 `'not_derived'` 로 세팅 → 둘 다 `unknown` severity. R05~R10 은 recordApi 가 개인매물에도 반환되므로 그대로 동작. (Sample 006 이 카나리아.)
+- **FetchStatus 구분**: HTTP 404 → `'no_report_for_personal'`, 401/403 → `'login_required'`, 5xx/network → `'api_fetch_error'`, not attempted → `'not_fetched'`. UI 에서 각각 다른 copy 로 노출.
 
 ---
 
-**Next Step**: 이 문서를 입력으로 Section 3 (Collection Pipeline) 상세 설계 → Section 4 (Rule Engine + Coverage Matrix 확정) → 구현 착수.
+**현재 상태**: MVP 가동 중. 딜러·개인매물 양쪽에서 11 룰 평가 확인. 후속 작업은 `docs/design/DESIGN.md` §11.3 (Phase 2 백로그) 참조.

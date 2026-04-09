@@ -32,8 +32,10 @@ export const css: string = `
   }
   .daksin-radar-svg {
     width: 100%;
+    max-width: 340px;
     height: auto;
     display: block;
+    margin: 0 auto;
   }
   .daksin-radar-poly {
     animation: daksin-radar-draw 500ms ease-out both;

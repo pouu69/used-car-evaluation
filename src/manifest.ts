@@ -5,8 +5,20 @@ export default defineManifest({
   name: 'daksin-car (MVP)',
   version: '0.1.0',
   description: '엔카 매물 자동 평가 — 닥신 11 룰 체크리스트',
+  icons: {
+    16: 'icons/icon-16.png',
+    32: 'icons/icon-32.png',
+    48: 'icons/icon-48.png',
+    128: 'icons/icon-128.png',
+  },
   action: {
     default_title: 'daksin-car',
+    default_icon: {
+      16: 'icons/icon-16.png',
+      32: 'icons/icon-32.png',
+      48: 'icons/icon-48.png',
+      128: 'icons/icon-128.png',
+    },
   },
   side_panel: {
     default_path: 'src/sidepanel/index.html',

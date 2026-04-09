@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { RuleResult } from '@/core/types/RuleTypes.js';
 import { CATEGORY_ORDER, RULE_META, type Category } from './rule-meta.js';
-import { AiEvaluationPanel } from './AiEvaluationPanel.js';
+import { AiEvaluationPanel, css as aiPanelCss } from './AiEvaluationPanel.js';
 import { globalCss } from './theme.js';
 import { useCarData, isEncarDetail } from './hooks/useCarData.js';
 
@@ -74,7 +74,8 @@ const SHEET =
   actionBarCss +
   loadingCss +
   emptyCss +
-  errorCss;
+  errorCss +
+  aiPanelCss;
 
 interface Counts {
   total: number;

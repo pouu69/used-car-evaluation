@@ -3,7 +3,7 @@
 **Version**: v2 (2026-04-09)
 **Status**: Phase 0 → Post-pivot → 개인매물 분기까지 반영
 **Scope**: `fem.encar.com` (메인 상세) + `api.encar.com` (구조화 API)
-**Samples**: 6건 (001 스포티지 · 002/003 팰리세이드 · 004 BMW E90 · 005 BMW G30 딜러 · **006 BMW G30 개인(CLIENT)** · 007 TBD)
+**Samples**: 7건 (001 스포티지 · 002/003 팰리세이드 · 004 BMW E90 · 005 BMW G30 딜러 · **006 BMW G30 개인(CLIENT)** · **007 BMW F30 렌트양성**)
 **Core Principle**: **AI-free 결정론적 파서** — LLM/비전 없이 JSON + 최소 DOM만 사용
 
 > ⚠️ **Post-pivot notice (2026-04-08 / 04-09)**: 이 문서의 §2~§6 본문은 **Phase 0 discovery 시점**의 듀얼 레이어(state-first + DOM-second) 전략을 기록한다. 이후 실제 구현은 다음 두 단계를 거쳐 바뀌었다:
@@ -19,6 +19,7 @@
 
 | # | 차량 | 판매자 | 핵심 발견 | 파일 |
 |---|---|---|---|---|
+| 007 | BMW 3시리즈 F30 320i | 딜러 | **첫 "rent=true" 양성 샘플**. `driveCaution.rent=true` + `caution.rent='있음'` + `enlogData.text='use_rent'` + `release.use='(비,대여)사업용'` 4필드 동시 활성. 첫 `recordApi.loan=1` 저당 관찰. `master.accdient=false` + `outers.length=3` → R04 PASS (교환 3건이 프레임 아님). R05+R07(5회 이전)+R08(공백 2회)+R10 복합 NEVER | [007](samples/007-bmw-f30-320i-rent-history.md) |
 | 006 | BMW 5시리즈 G30 530i | **개인(CLIENT)** | 첫 비딜러 샘플. inspection/diagnosis API 는 404. `contact.userType='CLIENT'`, `detailFlags.isDealer=false`, `spec.tradeType=null`, `importType='NONE_IMPORT_TYPE'`. **F5 불변식 유발** | [006](samples/006-bmw-g30-530i-individual-seller.md) |
 | 005 | BMW 5시리즈 G30 530i | 딜러 | 엔카진단 없는 외제 딜러. `/inspection/` 응답 구조 완전 관찰 — `master.detail.{waterlog, recall, tuning}`, `outers[].statusTypes` (교환/판금/부식). 히스토리 `release` 스키마 확장: `nation`, `use`, `fuel`, `cityConsumption` | [005](samples/005-bmw-g30-530i-no-diagnosis-insurance-gap.md) |
 | 004 | BMW 3시리즈 E90 328i | 딜러 | 첫 외제차 샘플. **법인 ≠ 렌트** 반증 (F1 불변식 본거지). 19년차 고주행 | [004](samples/004-bmw-e90-old-high-mileage.md) |
@@ -331,6 +332,7 @@ const INSPECT_LABELS = new Set([
 | [004](samples/004-bmw-e90-old-high-mileage.md) | BMW 3시리즈 E90 (2007) | 딜러 | 외제차 (`domestic=false`), DOM 진단 상세 파싱, **법인 ≠ 렌트** (F1), 노후/고주행 |
 | [005](samples/005-bmw-g30-530i-no-diagnosis-insurance-gap.md) | BMW 5시리즈 G30 530i (2019) | 딜러 | 엔카진단 없는 외제 딜러, `/inspection/` 응답 구조 완전 관찰 (`master.detail.waterlog`, `outers[].statusTypes`), `release` 스키마 확장 (`nation`, `use`, `fuel`, `cityConsumption`) |
 | [006](samples/006-bmw-g30-530i-individual-seller.md) | BMW 5시리즈 G30 530i (2017) | **개인(CLIENT)** | **첫 비딜러 샘플** — inspection/diagnosis API 는 404, record API 는 동작. `contact.userType='CLIENT'`, `isDealer=false`, `tradeType=null`, `vin=null`, `importType='NONE_IMPORT_TYPE'`. **F5 불변식 유발** |
+| [007](samples/007-bmw-f30-320i-rent-history.md) | BMW 3시리즈 F30 320i (2018) | 딜러 | **첫 `rent=true` 양성 샘플** — `driveCaution.rent`, `caution.rent`, `enlogData.text='use_rent'`, `release.use='(비,대여)사업용'` 4필드 교차검증. 첫 `recordApi.loan=1` 저당. `outers.length=3` (교환) 이지만 `master.accdient=false` → R04 PASS (교환 ≠ 프레임사고) 엣지케이스. |
 
 ## 8. 파서 아키텍처 함의 (Phase 0 기준, 실제 구현은 `DESIGN.md` §4 참조)
 

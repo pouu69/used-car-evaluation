@@ -97,10 +97,31 @@ export const HealthRadar: React.FC<HealthRadarProps> = ({ results }) => {
         </div>
       </div>
       <svg
-        viewBox="0 0 360 300"
+        viewBox="-30 -10 420 330"
         className="daksin-radar-svg"
         aria-label="Health radar chart"
       >
+        {/* Diagonal hatch pattern for data polygon fill */}
+        <defs>
+          <pattern
+            id="daksin-hatch"
+            patternUnits="userSpaceOnUse"
+            width={6}
+            height={6}
+            patternTransform="rotate(45)"
+          >
+            <rect width={6} height={6} fill="#e4ff00" />
+            <line
+              x1={0}
+              y1={0}
+              x2={0}
+              y2={6}
+              stroke="#000"
+              strokeWidth={2}
+            />
+          </pattern>
+        </defs>
+
         {/* Grid rings */}
         {ringPolygons.map(({ r, pts }) => (
           <polygon
@@ -128,10 +149,10 @@ export const HealthRadar: React.FC<HealthRadarProps> = ({ results }) => {
           />
         ))}
 
-        {/* Data polygon */}
+        {/* Data polygon — yellow bg + black diagonal hatch */}
         <polygon
           points={pointsStr(dataPoints)}
-          fill="#e4ff00"
+          fill="url(#daksin-hatch)"
           stroke="#000"
           strokeWidth={3}
           className="daksin-radar-poly"

@@ -13,6 +13,7 @@ import {
   sample003,
   sample004,
   sample006,
+  sample007,
   samplePersonalClean,
   sampleIdeal,
 } from '../src/__fixtures__/samples.js';
@@ -30,18 +31,21 @@ describe('integration: parsed → facts → verdict', () => {
     expect(triggered(report, ['R05', 'R08'])).toBe(true);
   });
 
-  it('Sample 002 (팰리세이드) → NEVER (R03, R05, R08)', () => {
+  it('Sample 002 (팰리세이드) → NEVER (R05, R08); 엔카진단 미수검은 감점이 아님', () => {
     const facts = encarToFacts(sample002);
     const report = evaluate(facts);
     expect(report.verdict).toBe('NEVER');
-    expect(triggered(report, ['R03', 'R05', 'R08'])).toBe(true);
+    expect(triggered(report, ['R05', 'R08'])).toBe(true);
+    // 엔카진단을 받지 않았지만 R03은 감점(killer) 대신 결과에서 완전히 드랍.
+    expect(report.results.find((r) => r.ruleId === 'R03')).toBeUndefined();
   });
 
-  it('Sample 003 (팰리세이드 2.2) → NEVER (R03, R05, R08) + R10 warn', () => {
+  it('Sample 003 (팰리세이드 2.2) → NEVER (R05, R08) + R10 warn', () => {
     const facts = encarToFacts(sample003);
     const report = evaluate(facts);
     expect(report.verdict).toBe('NEVER');
-    expect(triggered(report, ['R03', 'R05', 'R08'])).toBe(true);
+    expect(triggered(report, ['R05', 'R08'])).toBe(true);
+    expect(report.results.find((r) => r.ruleId === 'R03')).toBeUndefined();
     const r10 = report.results.find((r) => r.ruleId === 'R10');
     expect(r10?.severity).toBe('warn');
   });
@@ -111,5 +115,29 @@ describe('integration: parsed → facts → verdict', () => {
     expect(r04?.severity).toBe('unknown');
     const r01 = report.results.find((r) => r.ruleId === 'R01');
     expect(r01?.severity).toBe('pass');
+  });
+
+  it('Sample 007 (BMW F30 렌트) → NEVER (R05, R08) + R04 PASS via inspection', () => {
+    // Dealer listing with NO Encar diagnosis but WITH a 성능점검 report
+    // that explicitly declares `master.accdient=false`. Before the inspection
+    // layer, R04 resolved to UNKNOWN on this fixture. This test locks in the
+    // new precedence: diagnosisApi → inspectionApi → ribbon fallback.
+    const facts = encarToFacts(sample007);
+    const report = evaluate(facts);
+    expect(report.verdict).toBe('NEVER');
+    expect(triggered(report, ['R05', 'R08'])).toBe(true);
+    // R04 must PASS — frame signal comes from inspection, not diagnosis.
+    const r04 = report.results.find((r) => r.ruleId === 'R04');
+    expect(r04?.severity).toBe('pass');
+    // The inspection-sourced bridge warning must fire (simpleRepair branch).
+    expect(facts.bridgeWarnings).toContain(
+      'frameDamage_from_inspection_simpleRepair',
+    );
+    // The ribbon fallback must NOT have been used (isDiagnosisExist=false).
+    expect(facts.bridgeWarnings).not.toContain('frameDamage_from_ribbon');
+    // R03 is "bonus-only" — when diagnosis is absent the rule is dropped,
+    // so it should not appear in the report at all.
+    const r03 = report.results.find((r) => r.ruleId === 'R03');
+    expect(r03).toBeUndefined();
   });
 });

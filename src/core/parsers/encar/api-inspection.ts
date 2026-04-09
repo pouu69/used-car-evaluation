@@ -42,3 +42,30 @@ export const parseInspectionApi = (
   if (!json || typeof json !== 'object') return failed('inspection_api_empty');
   return value(json as InspectionApi);
 };
+
+/**
+ * Frame-damage judgment derived from the government-mandated 성능점검 report.
+ *
+ *   `master.accdient === true`  → frame accident on record        (R04 FAIL)
+ *   `master.accdient === false` → no frame accident               (R04 PASS)
+ *   anything else               → unknown (caller should fallback)
+ *
+ * `master.simpleRepair === true` does NOT imply frame damage — it marks
+ * outer-panel bolt-on replacements (door, fender, bonnet, trunk) which the
+ * Encar data model treats as distinct from frame sheet welding. Sample 007
+ * is the canonical reference: `accdient=false && simpleRepair=true` still
+ * verdicts R04 PASS.
+ *
+ * Returns `null` when the signal is absent so the bridge can fall through
+ * to the next-lower-priority source (the ribbon heuristic).
+ */
+export const getFrameFromInspection = (
+  ins: InspectionApi,
+): { hasDamage: boolean; simpleRepair: boolean } | null => {
+  const master = ins.master;
+  if (!master || typeof master.accdient !== 'boolean') return null;
+  return {
+    hasDamage: master.accdient,
+    simpleRepair: master.simpleRepair === true,
+  };
+};

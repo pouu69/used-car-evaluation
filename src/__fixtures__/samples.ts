@@ -333,6 +333,83 @@ export const samplePersonalClean: EncarParsedData = {
   },
 };
 
+// ── Sample 007: BMW F30 320i (dealer, no diagnosis, rent history) ──
+// First sample exercising the inspectionApi → R04 path. Dealer listing
+// without Encar diagnosis, but with a government 성능점검 report that
+// reports `accdient=false, simpleRepair=true`. R04 must resolve to PASS
+// via the inspection layer (NOT the ribbon, which requires
+// isDiagnosisExist=true). Verdict is still NEVER from R05/R08.
+// Source: docs/discovery/encar/samples/007-bmw-f30-320i-rent-history.md
+export const sample007: EncarParsedData = {
+  schemaVersion: 1,
+  source: 'encar',
+  url: 'https://fem.encar.com/cars/detail/41769443',
+  carId: '41769443',
+  vehicleId: 41769443,
+  vehicleNo: '174무1429',
+  fetchedAt: ts,
+  loginState: 'logged_in',
+  raw: {
+    base: value({
+      category: {
+        manufacturerName: 'BMW',
+        modelName: '3시리즈 (F30)',
+        gradeName: '320i M 스포츠',
+        yearMonth: '201803',
+        formYear: '2018',
+        newPrice: 4970,
+        domestic: false,
+        importType: 'NONE_IMPORT_TYPE',
+      },
+      advertisement: {
+        price: 1699,
+        preVerified: false,
+        trust: [],
+        diagnosisCar: false,
+        advertisementType: 'NORMAL',
+        oneLineText: '엔카 실촬영',
+      },
+      spec: { mileage: 81_922, fuelName: '가솔린', tradeType: 'D' },
+      contact: {
+        userType: 'DEALER',
+        isVerifyOwner: false,
+        isOwnerPartner: true,
+      },
+      partnership: { isPartneredVehicle: true },
+      vin: 'WBA8A9108JAE91643',
+    }),
+    detailFlags: value({
+      isInsuranceExist: true,
+      isHistoryView: true,
+      isDiagnosisExist: false, // ← ribbon fallback NOT available
+      isDealer: true,
+    }),
+    recordApi: value(
+      emptyRecord({
+        loan: 1, // first observed positive loan
+        ownerChangeCnt: 5,
+        myAccidentCnt: 2,
+        otherAccidentCnt: 3,
+        myAccidentCost: 2_141_500,
+        otherAccidentCost: 16_054_570,
+        notJoinDate1: '202108~202109',
+        notJoinDate2: '202409~202502',
+        accidentCnt: 5,
+      }),
+    ),
+    diagnosisApi: { kind: 'parse_failed', reason: 'not_fetched' },
+    // The whole point of this fixture: inspection says "no frame accident".
+    inspectionApi: value({
+      vehicleId: 41769443,
+      master: {
+        accdient: false, // (sic) — API returns this typo
+        simpleRepair: true, // outer-panel bolt-on replacement only
+        detail: { waterlog: false, recall: false, tuning: false },
+      },
+    }),
+  },
+};
+
 // ── Synthetic ideal PASS sample ─────────────────────────────────
 export const sampleIdeal: EncarParsedData = {
   schemaVersion: 1,

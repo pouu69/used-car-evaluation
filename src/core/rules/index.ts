@@ -103,23 +103,17 @@ export const r02: Rule = (f) => {
 export const r03: Rule = (f) => {
   const s = f.hasEncarDiagnosis;
   if (!isValue(s)) return unknownResult('R03', '엔카진단', s);
-  return s.value
-    ? {
-        ruleId: 'R03',
-        title: '엔카진단 통과',
-        severity: 'pass',
-        message: '엔카진단을 통과한 차량입니다',
-        evidence: [ev('isDiagnosisExist', true)],
-        acknowledgeable: false,
-      }
-    : {
-        ruleId: 'R03',
-        title: '엔카진단 통과',
-        severity: 'killer',
-        message: '🚨 엔카진단을 받지 않은 차량입니다',
-        evidence: [ev('isDiagnosisExist', false)],
-        acknowledgeable: true,
-      };
+  // 엔카진단은 "있으면 보너스" 성격. 없다고 감점 요인으로 보지 않는다.
+  // → 있을 때만 pass로 노출하고, 없으면 결과에서 완전히 제외 (null 반환).
+  if (!s.value) return null;
+  return {
+    ruleId: 'R03',
+    title: '엔카진단 통과',
+    severity: 'pass',
+    message: '엔카진단을 통과한 차량입니다',
+    evidence: [ev('isDiagnosisExist', true)],
+    acknowledgeable: false,
+  };
 };
 
 export const r04: Rule = (f) => {
@@ -176,23 +170,31 @@ export const r06: Rule = (f) => {
   const s = f.totalLossHistory;
   if (!isValue(s))
     return unknownResult('R06', '전손/침수/도난 없음', s);
-  return !s.value
-    ? {
-        ruleId: 'R06',
-        title: '전손/침수/도난 없음',
-        severity: 'pass',
-        message: '전손/침수/도난 이력이 없습니다',
-        evidence: [ev('totalLoss', false)],
-        acknowledgeable: false,
-      }
-    : {
-        ruleId: 'R06',
-        title: '전손/침수/도난 없음',
-        severity: 'killer',
-        message: '🚨 전손/침수/도난 이력이 확인되었습니다',
-        evidence: [ev('totalLoss', true)],
-        acknowledgeable: true,
-      };
+  const { totalLoss, floodTotal, floodPart, robber } = s.value;
+  const hits: string[] = [];
+  if (totalLoss > 0) hits.push(`전손 ${totalLoss}회`);
+  if (floodTotal > 0) hits.push(`침수전손 ${floodTotal}회`);
+  if (floodPart > 0) hits.push(`침수분손 ${floodPart}회`);
+  if (robber > 0) hits.push(`도난 ${robber}회`);
+
+  if (hits.length === 0) {
+    return {
+      ruleId: 'R06',
+      title: '전손/침수/도난 없음',
+      severity: 'pass',
+      message: '전손/침수/도난 이력이 없습니다',
+      evidence: [ev('totalLoss', s.value)],
+      acknowledgeable: false,
+    };
+  }
+  return {
+    ruleId: 'R06',
+    title: '전손/침수/도난 이력',
+    severity: 'killer',
+    message: `🚨 ${hits.join(', ')} 이력이 확인되었습니다`,
+    evidence: [ev('totalLoss', s.value)],
+    acknowledgeable: true,
+  };
 };
 
 export const r07: Rule = (f) => {
@@ -354,7 +356,10 @@ export const evaluate = (
   facts: ChecklistFacts,
   registry: Rule[] = ALL_RULES,
 ): RuleReport => {
-  const results = registry.map((rule) => rule(facts));
+  // null을 반환한 rule은 "해당 없음/비노출"로 간주하고 완전히 드랍.
+  const results = registry
+    .map((rule) => rule(facts))
+    .filter((r): r is RuleResult => r !== null);
   const killers = results.filter((r) => r.severity === 'killer');
   const warns = results.filter((r) => r.severity === 'warn');
   const verdict: Verdict =
@@ -365,7 +370,7 @@ export const evaluate = (
         : results.some((r) => r.severity === 'unknown')
           ? 'UNKNOWN'
           : 'OK';
-  const max = registry.length * 10;
+  const max = results.length * 10;
   const sum = results.reduce((acc, r) => acc + SEVERITY_SCORE[r.severity], 0);
   const score = max === 0 ? 0 : Math.round((sum / max) * 100);
   return { verdict, score, results, killers, warns };

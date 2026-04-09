@@ -21,6 +21,7 @@ import type { FieldStatus } from '../types/FieldStatus.js';
 import { failed, isValue, value } from '../types/FieldStatus.js';
 import { getInsuranceGapPeriods } from '../parsers/encar/api-record.js';
 import { getFrameIntact } from '../parsers/encar/api-diagnosis.js';
+import { getFrameFromInspection } from '../parsers/encar/api-inspection.js';
 
 /**
  * True when the listing is posted by an individual (CLIENT) rather than a
@@ -99,12 +100,12 @@ export const encarToFacts = (parsed: EncarParsedData): ChecklistFacts => {
       taxi: r.business > 0,
       business: r.government > 0,
     });
-    const totalLoss =
-      r.totalLossCnt +
-      r.floodTotalLossCnt +
-      (r.floodPartLossCnt ?? 0) +
-      r.robberCnt;
-    facts.totalLossHistory = value(totalLoss > 0);
+    facts.totalLossHistory = value({
+      totalLoss: r.totalLossCnt,
+      floodTotal: r.floodTotalLossCnt,
+      floodPart: r.floodPartLossCnt ?? 0,
+      robber: r.robberCnt,
+    });
     facts.ownerChangeCount = value(r.ownerChangeCnt);
     facts.insuranceGap = value(getInsuranceGapPeriods(r).length > 0);
     facts.unconfirmedAccident = value(false);
@@ -118,7 +119,15 @@ export const encarToFacts = (parsed: EncarParsedData): ChecklistFacts => {
     });
   }
 
-  // R04 frame — api.encar.com/v1/readside/diagnosis/vehicle/{id}
+  // R04 frame — layered sources, highest authority first.
+  //
+  //   1. diagnosisApi CHECKER_COMMENT — Encar's own paid diagnosis (dealer only).
+  //   2. inspectionApi `master.accdient` — government-mandated 성능점검 report.
+  //      Sample 007 is the canonical case: dealer without Encar diagnosis but
+  //      with a 성능점검 that explicitly declares `accdient=false`. Before this
+  //      layer existed, R04 resolved to UNKNOWN on that listing.
+  //   3. ribbon fallback — `isDiagnosisExist=true` implies intact (Encar does
+  //      not award the badge to frame-damaged cars).
   const dia = parsed.raw.diagnosisApi;
   if (isValue(dia)) {
     const intact = getFrameIntact(dia.value);
@@ -128,8 +137,20 @@ export const encarToFacts = (parsed: EncarParsedData): ChecklistFacts => {
       facts.frameDamage = value({ hasDamage: true });
     }
   }
-  // Trust the diagnosis ribbon when available and we have no other frame signal:
-  // Encar doesn't award `isDiagnosisExist=true` to frame-damaged cars.
+  if (!isValue(facts.frameDamage)) {
+    const ins = parsed.raw.inspectionApi;
+    if (isValue(ins)) {
+      const frame = getFrameFromInspection(ins.value);
+      if (frame) {
+        facts.frameDamage = value({ hasDamage: frame.hasDamage });
+        warnings.push(
+          frame.simpleRepair
+            ? 'frameDamage_from_inspection_simpleRepair'
+            : 'frameDamage_from_inspection',
+        );
+      }
+    }
+  }
   if (
     !isValue(facts.frameDamage) &&
     isValue(facts.hasEncarDiagnosis) &&

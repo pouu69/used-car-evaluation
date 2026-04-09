@@ -18,8 +18,17 @@ export interface ChecklistFacts {
   frameDamage: FieldStatus<{ hasDamage: boolean; parts?: string[] }>;
   /** R05 — KILLER */
   usageHistory: FieldStatus<{ rental: boolean; taxi: boolean; business: boolean }>;
-  /** R06 — KILLER */
-  totalLossHistory: FieldStatus<boolean>;
+  /**
+   * R06 — KILLER. 전손/침수전손/침수분손/도난 이력 개별 카운트.
+   * 어느 하나라도 > 0이면 killer로 취급. 구체적으로 어떤 이력인지
+   * R06 메시지에서 노출하기 위해 원본 count를 그대로 보관한다.
+   */
+  totalLossHistory: FieldStatus<{
+    totalLoss: number;
+    floodTotal: number;
+    floodPart: number;
+    robber: number;
+  }>;
   /** R07 */
   ownerChangeCount: FieldStatus<number>;
   /** R08 — KILLER */

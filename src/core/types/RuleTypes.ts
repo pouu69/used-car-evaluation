@@ -14,7 +14,7 @@ export interface RuleResult {
   acknowledgeable: boolean;
 }
 
-export type Rule = (facts: ChecklistFacts) => RuleResult;
+export type Rule = (facts: ChecklistFacts) => RuleResult | null;
 
 export type Verdict = 'NEVER' | 'CAUTION' | 'OK' | 'UNKNOWN';
 

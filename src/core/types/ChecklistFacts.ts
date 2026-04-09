@@ -31,8 +31,16 @@ export interface ChecklistFacts {
   }>;
   /** R07 */
   ownerChangeCount: FieldStatus<number>;
-  /** R08 — KILLER */
-  insuranceGap: FieldStatus<boolean>;
+  /**
+   * R08 — 자차보험 미가입 기간.
+   * `hasGap`은 공백 존재 여부, `totalMonths`는 전 기간 합산 개월수(양끝 포함),
+   * `periods`는 개별 구간(YYYY-MM)과 그 구간의 개월수.
+   */
+  insuranceGap: FieldStatus<{
+    hasGap: boolean;
+    totalMonths: number;
+    periods: Array<{ from: string; to: string; months: number }>;
+  }>;
   /** R09 */
   unconfirmedAccident: FieldStatus<boolean>;
   /** R10 */

@@ -191,7 +191,8 @@ describe('prompt builder', () => {
 
   it('buildEvaluationContext surfaces killers + bridge warnings', () => {
     const ctx = buildEvaluationContext(evalInput(sample007));
-    expect(ctx.killers.length).toBeGreaterThanOrEqual(2);
+    // R08 완화 이후 sample007 의 killer 는 R05 하나만 남는다.
+    expect(ctx.killers.length).toBeGreaterThanOrEqual(1);
     // R03 is now bonus-only — absence should NOT appear as a killer id.
     expect(ctx.killers.map((k) => k.id)).not.toContain('R03');
     expect(ctx.verdict).toBe('NEVER');

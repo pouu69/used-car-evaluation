@@ -25,7 +25,7 @@ const baseFacts = (): ChecklistFacts => ({
     robber: 0,
   }),
   ownerChangeCount: value(1),
-  insuranceGap: value(false),
+  insuranceGap: value({ hasGap: false, totalMonths: 0, periods: [] }),
   unconfirmedAccident: value(false),
   minorAccidents: value({ ownDamageWon: 0, otherDamageWon: 0, domestic: true }),
   priceVsMarket: value({ priceWon: 30_000_000, newPriceWon: 50_000_000, ratio: 0.6 }),

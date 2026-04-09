@@ -36,6 +36,23 @@ import { getFrameFromInspection } from '../parsers/encar/api-inspection.js';
  * neither is present we conservatively return `false` (assume dealer),
  * because treating a dealer as personal would under-flag real killer risks.
  */
+/**
+ * Inclusive month count between two `YYYY-MM` strings.
+ * e.g. `2025-08` ~ `2025-12` → 5 (Aug, Sep, Oct, Nov, Dec).
+ * Returns 0 if either input is malformed or `to` precedes `from`.
+ */
+export const monthsBetweenInclusive = (from: string, to: string): number => {
+  const m1 = /^(\d{4})-(\d{2})$/.exec(from);
+  const m2 = /^(\d{4})-(\d{2})$/.exec(to);
+  if (!m1 || !m2) return 0;
+  const y1 = Number(m1[1]);
+  const mo1 = Number(m1[2]);
+  const y2 = Number(m2[1]);
+  const mo2 = Number(m2[2]);
+  const diff = (y2 - y1) * 12 + (mo2 - mo1) + 1;
+  return diff > 0 ? diff : 0;
+};
+
 export const isPersonalListing = (
   base: FieldStatus<EncarCarBase>,
   flags: FieldStatus<DetailFlags>,
@@ -107,7 +124,18 @@ export const encarToFacts = (parsed: EncarParsedData): ChecklistFacts => {
       robber: r.robberCnt,
     });
     facts.ownerChangeCount = value(r.ownerChangeCnt);
-    facts.insuranceGap = value(getInsuranceGapPeriods(r).length > 0);
+    const rawGaps = getInsuranceGapPeriods(r);
+    const periods = rawGaps.map((p) => ({
+      from: p.from,
+      to: p.to,
+      months: monthsBetweenInclusive(p.from, p.to),
+    }));
+    const totalMonths = periods.reduce((acc, p) => acc + p.months, 0);
+    facts.insuranceGap = value({
+      hasGap: periods.length > 0,
+      totalMonths,
+      periods,
+    });
     facts.unconfirmedAccident = value(false);
 
     const base = parsed.raw.base;

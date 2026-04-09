@@ -27,7 +27,6 @@ const REASON_LABEL: Record<string, string> = {
   empty_inspect: '성능점검 리포트 비어있음',
   empty_accident: '사고 리포트 비어있음',
   no_frame_signal: '프레임 신호 없음',
-  no_baseline: '신차 가격 정보 없음 (시세 비교 불가)',
   not_derived: '데이터 미수집',
   not_applicable_personal: '개인매물 — 해당없음',
   no_report_for_personal: '개인매물 — 엔카 리포트 없음',
@@ -162,7 +161,7 @@ export const r05: Rule = (f) => {
       ruleId: 'R05',
       title: '관용 이력',
       severity: 'warn',
-      message: '⚠ 관용 이력이 확인되었습니다 (관리이력은 양호할 수 있음)',
+      message: '⚠ 관용 이력이 확인되었습니다',
       evidence: [ev('usageHistory', s.value)],
       acknowledgeable: false,
     };
@@ -235,28 +234,38 @@ export const r07: Rule = (f) => {
   };
 };
 
+const formatGapDuration = (months: number): string => {
+  if (months <= 0) return '';
+  if (months < 12) return `${months}개월`;
+  const y = Math.floor(months / 12);
+  const m = months % 12;
+  return m === 0 ? `${y}년` : `${y}년 ${m}개월`;
+};
+
 export const r08: Rule = (f) => {
   const s = f.insuranceGap;
-  if (!isValue(s))
-    return unknownResult('R08', '자차보험 공백 없음', s);
-  return !s.value
-    ? {
-        ruleId: 'R08',
-        title: '자차보험 공백 없음',
-        severity: 'pass',
-        message: '자차보험 공백이 없습니다',
-        evidence: [ev('insuranceGap', false)],
-        acknowledgeable: false,
-      }
-    : {
-        ruleId: 'R08',
-        title: '자차보험 공백',
-        severity: 'warn',
-        message:
-          '⚠ 자차보험 미가입 기간이 존재합니다 (사고 신호는 R04/R06/R10 별도 확인)',
-        evidence: [ev('insuranceGap', true)],
-        acknowledgeable: false,
-      };
+  if (!isValue(s)) return unknownResult('R08', '자차보험 공백 없음', s);
+  const { hasGap, totalMonths, periods } = s.value;
+  if (!hasGap) {
+    return {
+      ruleId: 'R08',
+      title: '자차보험 공백 없음',
+      severity: 'pass',
+      message: '자차보험 공백이 없습니다',
+      evidence: [ev('insuranceGap', s.value)],
+      acknowledgeable: false,
+    };
+  }
+  const duration = formatGapDuration(totalMonths);
+  const segmentSuffix = periods.length > 1 ? ` · ${periods.length}개 구간` : '';
+  return {
+    ruleId: 'R08',
+    title: '자차보험 공백',
+    severity: 'warn',
+    message: `⚠ 자차보험 미가입 ${duration}${segmentSuffix}`,
+    evidence: [ev('insuranceGap', s.value)],
+    acknowledgeable: false,
+  };
 };
 
 export const r09: Rule = (f) => {
@@ -332,11 +341,10 @@ export const r11: Rule = (f) => {
   const s = f.priceVsMarket;
   if (!isValue(s)) return unknownResult('R11', '가격 적정성', s);
   const { ratio } = s.value;
-  if (ratio === 0)
-    return unknownResult('R11', '가격 적정성', {
-      kind: 'parse_failed',
-      reason: 'no_baseline',
-    });
+  // R03 과 동일한 "보너스 전용" 패턴.
+  // 엔카가 신차가(baseline)를 제공하지 않으면 시세 비교가 애초에 불가능 →
+  // unknown 으로 자리만 차지하지 말고 결과에서 완전히 드랍한다.
+  if (ratio === 0) return null;
   // 옵션·연식이 낮으면 100% 초과는 흔함 → 115%부터 과한 가격으로 경고.
   // 45% 미만은 여전히 사고매물/이상매물 가능성 ↑.
   if (ratio < 0.45) {

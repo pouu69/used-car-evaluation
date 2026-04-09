@@ -24,39 +24,51 @@ const triggered = (report: ReturnType<typeof evaluate>, ids: string[]) => {
 };
 
 describe('integration: parsed → facts → verdict', () => {
-  it('Sample 001 (스포티지) → NEVER (R05, R08)', () => {
+  it('Sample 001 (스포티지) → NEVER via R05 (rental); R08 demoted to warn', () => {
     const facts = encarToFacts(sample001);
     const report = evaluate(facts);
     expect(report.verdict).toBe('NEVER');
-    expect(triggered(report, ['R05', 'R08'])).toBe(true);
+    expect(triggered(report, ['R05'])).toBe(true);
+    // R08 자차보험 공백은 이제 warn (killer 아님).
+    const r08 = report.results.find((r) => r.ruleId === 'R08');
+    expect(r08?.severity).toBe('warn');
   });
 
-  it('Sample 002 (팰리세이드) → NEVER (R05, R08); 엔카진단 미수검은 감점이 아님', () => {
+  it('Sample 002 (팰리세이드) → NEVER via R05 (rental); R03 dropped', () => {
     const facts = encarToFacts(sample002);
     const report = evaluate(facts);
     expect(report.verdict).toBe('NEVER');
-    expect(triggered(report, ['R05', 'R08'])).toBe(true);
+    expect(triggered(report, ['R05'])).toBe(true);
+    const r08 = report.results.find((r) => r.ruleId === 'R08');
+    expect(r08?.severity).toBe('warn');
     // 엔카진단을 받지 않았지만 R03은 감점(killer) 대신 결과에서 완전히 드랍.
     expect(report.results.find((r) => r.ruleId === 'R03')).toBeUndefined();
   });
 
-  it('Sample 003 (팰리세이드 2.2) → NEVER (R05, R08) + R10 warn', () => {
+  it('Sample 003 (팰리세이드 2.2) → NEVER via R05; R08 warn + R10 warn', () => {
     const facts = encarToFacts(sample003);
     const report = evaluate(facts);
     expect(report.verdict).toBe('NEVER');
-    expect(triggered(report, ['R05', 'R08'])).toBe(true);
+    expect(triggered(report, ['R05'])).toBe(true);
     expect(report.results.find((r) => r.ruleId === 'R03')).toBeUndefined();
+    const r08 = report.results.find((r) => r.ruleId === 'R08');
+    expect(r08?.severity).toBe('warn');
+    // R10: 타차피해 2.57M 원 ≥ 국산 신 임계 2M → 여전히 warn.
     const r10 = report.results.find((r) => r.ruleId === 'R10');
     expect(r10?.severity).toBe('warn');
   });
 
-  it('Sample 004 (BMW E90) → NEVER (R08) + R10 warn (외제차 200만 임계)', () => {
+  it('Sample 004 (BMW E90) → CAUTION (killer 없음, R08/R10 warn)', () => {
     const facts = encarToFacts(sample004);
     const report = evaluate(facts);
-    expect(report.verdict).toBe('NEVER');
-    expect(triggered(report, ['R08'])).toBe(true);
+    // R08이 warn 으로 내려가면서 이 매물은 killer 가 사라짐 → CAUTION 등급.
+    expect(report.verdict).toBe('CAUTION');
+    expect(report.killers.length).toBe(0);
     const r05 = report.results.find((r) => r.ruleId === 'R05');
     expect(r05?.severity).toBe('pass'); // 법인≠렌트 invariant
+    const r08 = report.results.find((r) => r.ruleId === 'R08');
+    expect(r08?.severity).toBe('warn');
+    // 수입차 신 임계 3M 원, my=8.97M → 여전히 warn.
     const r10 = report.results.find((r) => r.ruleId === 'R10');
     expect(r10?.severity).toBe('warn');
   });
@@ -69,12 +81,14 @@ describe('integration: parsed → facts → verdict', () => {
     expect(report.warns.length).toBe(0);
   });
 
-  it('Sample 006 (BMW G30 개인매물) → NEVER (R08) but R03 is NOT a killer', () => {
+  it('Sample 006 (BMW G30 개인매물) → CAUTION (R08 warn, R03 unknown)', () => {
     const facts = encarToFacts(sample006);
     const report = evaluate(facts);
-    expect(report.verdict).toBe('NEVER');
-    // R08 KILLER — real problem on this listing
-    expect(triggered(report, ['R08'])).toBe(true);
+    // R08 완화 이후 killer 가 없어지고, warn 다수만 남음 → CAUTION.
+    expect(report.verdict).toBe('CAUTION');
+    expect(report.killers.length).toBe(0);
+    const r08 = report.results.find((r) => r.ruleId === 'R08');
+    expect(r08?.severity).toBe('warn');
     // R03 must resolve as UNKNOWN (personal listing cannot get diagnosis)
     // — proves the dealer/personal branch in the bridge.
     const r03 = report.results.find((r) => r.ruleId === 'R03');
@@ -125,7 +139,10 @@ describe('integration: parsed → facts → verdict', () => {
     const facts = encarToFacts(sample007);
     const report = evaluate(facts);
     expect(report.verdict).toBe('NEVER');
-    expect(triggered(report, ['R05', 'R08'])).toBe(true);
+    expect(triggered(report, ['R05'])).toBe(true);
+    // R08 은 더 이상 killer 가 아님 — warn 으로 존재.
+    const r08 = report.results.find((r) => r.ruleId === 'R08');
+    expect(r08?.severity).toBe('warn');
     // R04 must PASS — frame signal comes from inspection, not diagnosis.
     const r04 = report.results.find((r) => r.ruleId === 'R04');
     expect(r04?.severity).toBe('pass');

@@ -50,7 +50,12 @@ export const css: string = `
   flex-direction: column;
   justify-content: space-between;
   position: relative;
+  transition: background 180ms ease-out;
 }
+.hero-verdict--never   { background: #ff2d4b; }
+.hero-verdict--caution { background: #e4ff00; }
+.hero-verdict--ok      { background: #7cff6b; }
+.hero-verdict--unknown { background: #d4d4d4; }
 .hero-verdict-dot {
   position: absolute;
   top: 6px;
@@ -58,7 +63,11 @@ export const css: string = `
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #ff2d4b;
+  background: #000;
+  box-shadow: 0 0 0 2px #fff;
+}
+.hero-verdict--never .hero-verdict-dot {
+  background: #fff;
   box-shadow: 0 0 0 2px #000;
 }
 .hero-verdict-tag {
@@ -88,6 +97,13 @@ export const css: string = `
 }
 `;
 
+const VERDICT_CLASS: Record<Verdict, string> = {
+  NEVER:   'hero-verdict hero-verdict--never',
+  CAUTION: 'hero-verdict hero-verdict--caution',
+  OK:      'hero-verdict hero-verdict--ok',
+  UNKNOWN: 'hero-verdict hero-verdict--unknown',
+};
+
 export const Hero: React.FC<HeroProps> = ({ score, verdict, killers, warns }) => {
   const animatedScore = useCountUp(score, 600);
   const label = mapVerdictLabel(verdict);
@@ -100,7 +116,7 @@ export const Hero: React.FC<HeroProps> = ({ score, verdict, killers, warns }) =>
         <div className="hero-score-number">{animatedScore}</div>
         <div className="hero-score-sub">OUT OF 100</div>
       </div>
-      <div className="hero-verdict">
+      <div className={VERDICT_CLASS[verdict]}>
         {killers.length > 0 && <div className="hero-verdict-dot" />}
         <div>
           <div className="hero-verdict-tag">◆ VERDICT</div>

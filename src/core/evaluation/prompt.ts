@@ -14,6 +14,7 @@ import type { ChecklistFacts } from '../types/ChecklistFacts.js';
 import type { RuleReport, RuleResult } from '../types/RuleTypes.js';
 import type { EncarCarBase } from '../types/ParsedData.js';
 import type { EvaluationInput } from './types.js';
+import { formatYearMonth } from '../parsers/utils/text.js';
 
 // ---------- system prompt ----------
 
@@ -64,11 +65,6 @@ const formatPriceMan = (man: number | null): string | null => {
     return rest > 0 ? `${eok}억${rest}만` : `${eok}억`;
   }
   return `${man}만`;
-};
-
-const formatYearMonth = (ym: string | null | undefined): string | null => {
-  if (!ym || ym.length < 6) return null;
-  return `${ym.slice(0, 4)}.${ym.slice(4, 6)}`;
 };
 
 /** 차량을 한 줄 문자열로 직렬화. 토큰 최소. */

@@ -1,15 +1,11 @@
 import React from 'react';
 import type { EncarParsedData } from '@/core/types/ParsedData.js';
+import { formatYearMonth } from '@/core/parsers/utils/text.js';
 
 interface CarStripProps {
   parsed: EncarParsedData;
   carId: string;
 }
-
-const formatYearMonth = (ym: string | undefined): string | undefined => {
-  if (!ym || ym.length < 6) return undefined;
-  return `${ym.slice(0, 4)}.${ym.slice(4, 6)}`;
-};
 
 const formatMileage = (km: number | undefined): string | undefined => {
   if (km === undefined) return undefined;
@@ -79,7 +75,9 @@ export const CarStrip: React.FC<CarStripProps> = ({ parsed, carId }) => {
   const pr = formatPrice(b.advertisement.price);
 
   const makeLabel = make + (grade ? ` · ${grade}` : '');
-  const specParts = [ym, mi, `#${carId}`].filter((s): s is string => s !== undefined);
+  const specParts = [ym, mi, `#${carId}`].filter(
+    (s): s is string => s !== undefined && s !== null,
+  );
 
   return (
     <div className="car-strip">

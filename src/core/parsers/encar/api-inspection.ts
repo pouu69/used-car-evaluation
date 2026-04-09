@@ -17,6 +17,7 @@
  */
 import type { FieldStatus } from '../../types/FieldStatus.js';
 import { failed, value } from '../../types/FieldStatus.js';
+import { isObjectLike } from '../utils/validate.js';
 
 export interface InspectionApi {
   vehicleId: number;
@@ -39,8 +40,8 @@ export interface InspectionApi {
 export const parseInspectionApi = (
   json: unknown,
 ): FieldStatus<InspectionApi> => {
-  if (!json || typeof json !== 'object') return failed('inspection_api_empty');
-  return value(json as InspectionApi);
+  if (!isObjectLike(json)) return failed('inspection_api_empty');
+  return value(json as unknown as InspectionApi);
 };
 
 /**

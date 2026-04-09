@@ -28,3 +28,16 @@ export const findFirst = <T>(
   items: T[],
   pred: (item: T) => boolean,
 ): T | undefined => items.find(pred);
+
+/**
+ * Format a `YYYYMM` string as `YYYY<sep>MM`. Returns `null` for missing or
+ * malformed input. `sep` defaults to `.` to match the common UI format;
+ * pass `-` for date-like `YYYY-MM` output.
+ */
+export const formatYearMonth = (
+  ym: string | undefined | null,
+  sep: string = '.',
+): string | null => {
+  if (!ym || typeof ym !== 'string' || ym.length < 6) return null;
+  return `${ym.slice(0, 4)}${sep}${ym.slice(4, 6)}`;
+};

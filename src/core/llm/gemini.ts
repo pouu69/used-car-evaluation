@@ -4,6 +4,7 @@
  * - OpenAI 포맷 messages를 Gemini contents/systemInstruction 포맷으로 매핑.
  * - 네트워크 실패/비정상 응답은 LLMError로 통일.
  */
+import { assertMessagesNonEmpty, fetchLLM, validateApiKey } from './base.js';
 import {
   LLMError,
   type LLMClient,
@@ -12,7 +13,7 @@ import {
   type LLMMessage,
 } from './types.js';
 
-const PROVIDER = 'gemini';
+const PROVIDER = { id: 'gemini', label: 'Gemini' } as const;
 const DEFAULT_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta';
 // 2.5-flash-lite가 가장 저렴한 tier. 구조화된 JSON 출력엔 충분.
 const DEFAULT_MODEL = 'gemini-2.5-flash-lite';
@@ -85,37 +86,19 @@ const toGeminiPayload = (
 };
 
 export class GeminiClient implements LLMClient {
-  readonly provider = PROVIDER;
+  readonly provider = PROVIDER.id;
   readonly #apiKey: string;
   readonly #baseUrl: string;
   readonly #defaultModel: string;
 
   constructor(cfg: GeminiClientConfig) {
-    const key = cfg.apiKey?.trim() ?? '';
-    if (!key) {
-      throw new LLMError('Gemini API key is required', { provider: PROVIDER });
-    }
-    // HTTP headers must be ISO-8859-1 (Latin-1). A pasted key that accidentally
-    // carries a trailing Korean quote, fullwidth char, or smart quote will
-    // make `fetch` throw `String contains non ISO-8859-1 code point` deep
-    // inside the request setup — a confusing error surface. Fail fast here
-    // with a user-actionable message instead.
-    // eslint-disable-next-line no-control-regex
-    if (!/^[\x20-\x7e]+$/.test(key)) {
-      throw new LLMError(
-        'Gemini API key contains non-ASCII characters — check for pasted smart quotes or hidden whitespace',
-        { provider: PROVIDER },
-      );
-    }
-    this.#apiKey = key;
+    this.#apiKey = validateApiKey(cfg.apiKey, PROVIDER);
     this.#baseUrl = (cfg.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
     this.#defaultModel = cfg.defaultModel ?? DEFAULT_MODEL;
   }
 
   async complete(req: LLMCompletionRequest): Promise<LLMCompletionResult> {
-    if (!req.messages || req.messages.length === 0) {
-      throw new LLMError('messages must not be empty', { provider: PROVIDER });
-    }
+    assertMessagesNonEmpty(req.messages, PROVIDER);
 
     const model = req.model ?? this.#defaultModel;
     const { contents, systemInstruction } = toGeminiPayload(req.messages);
@@ -140,9 +123,9 @@ export class GeminiClient implements LLMClient {
 
     const url = `${this.#baseUrl}/models/${encodeURIComponent(model)}:generateContent`;
 
-    let res: Response;
-    try {
-      res = await fetch(url, {
+    const json = (await fetchLLM(
+      url,
+      {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -151,34 +134,9 @@ export class GeminiClient implements LLMClient {
         },
         body: JSON.stringify(body),
         signal: req.signal,
-      });
-    } catch (err: unknown) {
-      throw new LLMError(
-        `Gemini request failed: ${err instanceof Error ? err.message : String(err)}`,
-        { provider: PROVIDER },
-      );
-    }
-
-    let json: GeminiGenerateResponse | null = null;
-    try {
-      json = (await res.json()) as GeminiGenerateResponse;
-    } catch {
-      /* non-JSON — fall through */
-    }
-
-    if (!res.ok) {
-      const detail = json?.error?.message ?? res.statusText;
-      throw new LLMError(`Gemini ${res.status}: ${detail}`, {
-        status: res.status,
-        provider: PROVIDER,
-      });
-    }
-    if (!json) {
-      throw new LLMError('Gemini returned a non-JSON response', {
-        status: res.status,
-        provider: PROVIDER,
-      });
-    }
+      },
+      PROVIDER,
+    )) as GeminiGenerateResponse;
 
     const candidate = json.candidates?.[0];
     const parts = candidate?.content?.parts ?? [];
@@ -189,7 +147,7 @@ export class GeminiClient implements LLMClient {
     if (candidate?.finishReason === 'MAX_TOKENS') {
       throw new LLMError(
         'Gemini response truncated (MAX_TOKENS). Try increasing maxTokens.',
-        { status: res.status, provider: PROVIDER },
+        { provider: PROVIDER.id },
       );
     }
 

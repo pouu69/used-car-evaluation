@@ -7,6 +7,7 @@
 import type { EncarCarBase, DetailFlags } from '../../types/ParsedData.js';
 import type { FieldStatus } from '../../types/FieldStatus.js';
 import { failed, value } from '../../types/FieldStatus.js';
+import { isPlainObject } from '../utils/validate.js';
 
 export interface PreloadedRoot {
   __PRELOADED_STATE__?: {
@@ -43,16 +44,16 @@ export const extractBase = (
   root: PreloadedRoot,
 ): FieldStatus<EncarCarBase> => {
   const primary = root.__PRELOADED_STATE__?.cars?.base;
-  if (primary && typeof primary === 'object') {
-    return value(primary as EncarCarBase);
+  if (isPlainObject(primary)) {
+    return value(primary as unknown as EncarCarBase);
   }
   const pp = root.__NEXT_DATA__?.props?.pageProps;
   const fromNext =
     (pp as { cars?: { base?: unknown } } | undefined)?.cars?.base ??
     (pp as { base?: unknown } | undefined)?.base ??
     deepFind(root.__NEXT_DATA__, 'base');
-  if (fromNext && typeof fromNext === 'object') {
-    return value(fromNext as EncarCarBase);
+  if (isPlainObject(fromNext)) {
+    return value(fromNext as unknown as EncarCarBase);
   }
   return failed('preloaded_state_missing');
 };
@@ -61,8 +62,8 @@ export const extractDetailFlags = (
   root: PreloadedRoot,
 ): FieldStatus<DetailFlags> => {
   const primary = root.__PRELOADED_STATE__?.cars?.detailFlags;
-  if (primary && typeof primary === 'object') {
-    return value(primary as DetailFlags);
+  if (isPlainObject(primary)) {
+    return value(primary as unknown as DetailFlags);
   }
   const pp = root.__NEXT_DATA__?.props?.pageProps;
   const fromNext =
@@ -70,8 +71,8 @@ export const extractDetailFlags = (
       ?.detailFlags ??
     (pp as { detailFlags?: unknown } | undefined)?.detailFlags ??
     deepFind(root.__NEXT_DATA__, 'detailFlags');
-  if (fromNext && typeof fromNext === 'object') {
-    return value(fromNext as DetailFlags);
+  if (isPlainObject(fromNext)) {
+    return value(fromNext as unknown as DetailFlags);
   }
   return failed('detail_flags_missing');
 };

@@ -56,4 +56,47 @@ export type Message =
   | { type: 'GET_LAST'; carId?: string };
 
 export const isMessage = (v: unknown): v is Message =>
-  typeof v === 'object' && v !== null && 'type' in v;
+  typeof v === 'object' &&
+  v !== null &&
+  'type' in v &&
+  typeof (v as { type: unknown }).type === 'string';
+
+export const isCollectRequest = (
+  v: unknown,
+): v is Extract<Message, { type: 'COLLECT_REQUEST' }> =>
+  isMessage(v) && v.type === 'COLLECT_REQUEST';
+
+export const isCollectForTab = (
+  v: unknown,
+): v is Extract<Message, { type: 'COLLECT_FOR_TAB' }> =>
+  isMessage(v) && v.type === 'COLLECT_FOR_TAB';
+
+export const isCollectProgress = (
+  v: unknown,
+): v is Extract<Message, { type: 'COLLECT_PROGRESS' }> =>
+  isMessage(v) && v.type === 'COLLECT_PROGRESS';
+
+export const isCollectResult = (
+  v: unknown,
+): v is Extract<Message, { type: 'COLLECT_RESULT' }> =>
+  isMessage(v) && v.type === 'COLLECT_RESULT';
+
+export const isCollectError = (
+  v: unknown,
+): v is Extract<Message, { type: 'COLLECT_ERROR' }> =>
+  isMessage(v) && v.type === 'COLLECT_ERROR';
+
+export const isAckRule = (
+  v: unknown,
+): v is Extract<Message, { type: 'ACK_RULE' }> =>
+  isMessage(v) && v.type === 'ACK_RULE';
+
+export const isRefresh = (
+  v: unknown,
+): v is Extract<Message, { type: 'REFRESH' }> =>
+  isMessage(v) && v.type === 'REFRESH';
+
+export const isGetLast = (
+  v: unknown,
+): v is Extract<Message, { type: 'GET_LAST' }> =>
+  isMessage(v) && v.type === 'GET_LAST';

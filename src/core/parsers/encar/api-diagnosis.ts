@@ -15,6 +15,7 @@
  */
 import type { FieldStatus } from '../../types/FieldStatus.js';
 import { failed, value } from '../../types/FieldStatus.js';
+import { isObjectLike } from '../utils/validate.js';
 
 export interface DiagnosisItem {
   code: string;
@@ -31,10 +32,10 @@ export interface DiagnosisApi {
 export const parseDiagnosisApi = (
   json: unknown,
 ): FieldStatus<DiagnosisApi> => {
-  if (!json || typeof json !== 'object') return failed('diagnosis_api_empty');
+  if (!isObjectLike(json)) return failed('diagnosis_api_empty');
   const items = (json as { items?: unknown }).items;
   if (!Array.isArray(items)) return failed('diagnosis_api_no_items');
-  return value(json as DiagnosisApi);
+  return value(json as unknown as DiagnosisApi);
 };
 
 /**

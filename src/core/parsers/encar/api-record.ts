@@ -31,6 +31,8 @@
  */
 import type { FieldStatus } from '../../types/FieldStatus.js';
 import { failed, value } from '../../types/FieldStatus.js';
+import { isObjectLike } from '../utils/validate.js';
+import { formatYearMonth } from '../utils/text.js';
 
 export interface RecordApi {
   myAccidentCnt: number;
@@ -96,10 +98,9 @@ export const getInsuranceGapPeriods = (
     // Format: "202508~202512"
     const m = /(\d{6})\s*~\s*(\d{6})/.exec(s);
     if (m && m[1] && m[2]) {
-      out.push({
-        from: `${m[1].slice(0, 4)}-${m[1].slice(4, 6)}`,
-        to: `${m[2].slice(0, 4)}-${m[2].slice(4, 6)}`,
-      });
+      const from = formatYearMonth(m[1], '-');
+      const to = formatYearMonth(m[2], '-');
+      if (from && to) out.push({ from, to });
     }
   }
   return out;

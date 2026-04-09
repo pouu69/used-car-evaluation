@@ -125,6 +125,10 @@ const Wrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
       background: '#ffffff',
       color: '#000000',
       fontFamily: "'Inter Tight', sans-serif",
+      // Cap overall content width so the sidepanel stays comfortable to
+      // read even when the user stretches the Chrome sidepanel wider.
+      maxWidth: 380,
+      margin: '0 auto',
     }}
   >
     <style>{SHEET}</style>

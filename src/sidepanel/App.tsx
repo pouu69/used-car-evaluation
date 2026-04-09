@@ -4,6 +4,7 @@ import type { CacheRow } from '@/core/storage/db';
 import type { EncarParsedData } from '@/core/types/ParsedData';
 import type { RuleResult, Severity, Verdict } from '@/core/types/RuleTypes';
 import { RULE_META, CATEGORY_ORDER, type Category } from './rule-meta';
+import { AiEvaluationPanel } from './AiEvaluationPanel';
 
 interface CarTitle {
   primary: string;
@@ -100,6 +101,7 @@ const STAGE_LABEL: Record<string, string> = {
 };
 
 type Filter = 'all' | 'risks' | 'pass' | 'unknown';
+type Tab = 'checklist' | 'ai';
 
 const extractCarId = (url: string | undefined): string | null => {
   if (!url) return null;
@@ -152,6 +154,7 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [progressStage, setProgressStage] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  const [tab, setTab] = useState<Tab>('checklist');
   const [loadError, setLoadError] = useState<string | null>(null);
   // Ref mirrors `active` so the message listener can read the latest active tab
   // without being recreated on every state change.
@@ -483,35 +486,40 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter chips */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <FilterChip
-          active={filter === 'all'}
-          onClick={() => setFilter('all')}
-          label={`전체 ${counts.total}`}
-        />
-        <FilterChip
-          active={filter === 'risks'}
-          onClick={() => setFilter('risks')}
-          label={`위험 ${counts.killers + counts.warns}`}
-          color="#c82333"
-        />
-        <FilterChip
-          active={filter === 'pass'}
-          onClick={() => setFilter('pass')}
-          label={`통과 ${counts.passes}`}
-          color="#2d9d5c"
-        />
-        <FilterChip
-          active={filter === 'unknown'}
-          onClick={() => setFilter('unknown')}
-          label={`불명 ${counts.unknowns}`}
-          color="#6a7380"
-        />
-      </div>
+      {/* Tab bar */}
+      <TabBar tab={tab} onChange={setTab} />
 
-      {/* Rule list grouped by category */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {tab === 'checklist' && (
+        <>
+          {/* Filter chips */}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <FilterChip
+              active={filter === 'all'}
+              onClick={() => setFilter('all')}
+              label={`전체 ${counts.total}`}
+            />
+            <FilterChip
+              active={filter === 'risks'}
+              onClick={() => setFilter('risks')}
+              label={`위험 ${counts.killers + counts.warns}`}
+              color="#c82333"
+            />
+            <FilterChip
+              active={filter === 'pass'}
+              onClick={() => setFilter('pass')}
+              label={`통과 ${counts.passes}`}
+              color="#2d9d5c"
+            />
+            <FilterChip
+              active={filter === 'unknown'}
+              onClick={() => setFilter('unknown')}
+              label={`불명 ${counts.unknowns}`}
+              color="#6a7380"
+            />
+          </div>
+
+          {/* Rule list grouped by category */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {grouped.length === 0 && (
           <div
             style={{
@@ -525,28 +533,45 @@ export const App: React.FC = () => {
             해당하는 항목이 없습니다
           </div>
         )}
-        {grouped.map(([cat, items]) => (
-          <section key={cat}>
-            <h3
-              style={{
-                fontSize: 11,
-                textTransform: 'uppercase',
-                letterSpacing: 1,
-                opacity: 0.55,
-                margin: '0 0 8px 4px',
-                fontWeight: 700,
-              }}
-            >
-              {cat}
-            </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {items.map((r) => (
-                <RuleCard key={r.ruleId} result={r} onAck={() => ack(r.ruleId)} />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
+            {grouped.map(([cat, items]) => (
+              <section key={cat}>
+                <h3
+                  style={{
+                    fontSize: 11,
+                    textTransform: 'uppercase',
+                    letterSpacing: 1,
+                    opacity: 0.55,
+                    margin: '0 0 8px 4px',
+                    fontWeight: 700,
+                  }}
+                >
+                  {cat}
+                </h3>
+                <div
+                  style={{ display: 'flex', flexDirection: 'column', gap: 6 }}
+                >
+                  {items.map((r) => (
+                    <RuleCard
+                      key={r.ruleId}
+                      result={r}
+                      onAck={() => ack(r.ruleId)}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        </>
+      )}
+
+      {tab === 'ai' && (
+        /* AI evaluation — gated on user-provided API key, nothing persisted. */
+        <AiEvaluationPanel
+          parsed={row!.parsed}
+          facts={row!.facts}
+          report={row!.report}
+        />
+      )}
     </Wrapper>
   );
 };
@@ -766,6 +791,59 @@ const MiniStat: React.FC<{
     </span>
   </div>
 );
+
+const TabBar: React.FC<{
+  tab: Tab;
+  onChange: (t: Tab) => void;
+}> = ({ tab, onChange }) => {
+  const tabs: Array<{ id: Tab; label: string; icon: string }> = [
+    { id: 'checklist', label: '체크리스트', icon: '📋' },
+    { id: 'ai', label: 'AI 평가', icon: '🤖' },
+  ];
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 4,
+        background: '#161b22',
+        border: '1px solid #20262e',
+        borderRadius: 10,
+        padding: 4,
+      }}
+    >
+      {tabs.map((t) => {
+        const active = tab === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => onChange(t.id)}
+            style={{
+              flex: 1,
+              background: active ? '#6aa1ff' : 'transparent',
+              color: active ? '#0b0d10' : '#b3bac3',
+              border: 'none',
+              padding: '8px 10px',
+              borderRadius: 7,
+              cursor: 'pointer',
+              fontSize: 12,
+              fontWeight: 800,
+              letterSpacing: 0.3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              transition: 'background 0.15s',
+            }}
+          >
+            <span>{t.icon}</span>
+            <span>{t.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+};
 
 const FilterChip: React.FC<{
   active: boolean;

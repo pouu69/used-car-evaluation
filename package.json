@@ -8,7 +8,9 @@
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "icons": "node scripts/generate-icons.mjs",
+    "package": "npm run build && node scripts/package-extension.mjs"
   },
   "dependencies": {
     "dexie": "^4.0.10",

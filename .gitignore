@@ -3,6 +3,9 @@ node_modules/
 dist/
 .playwright-mcp/
 
+# Chrome Web Store submission packages
+*.zip
+
 # Temporary discovery captures (kept locally, not committed)
 *.png
 *-snapshot.yml

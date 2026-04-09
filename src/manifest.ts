@@ -2,9 +2,9 @@ import { defineManifest } from '@crxjs/vite-plugin';
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'daksin-car (MVP)',
+  name: 'AutoVerdict',
   version: '0.1.0',
-  description: '엔카 매물 자동 평가 — 닥신 11 룰 체크리스트',
+  description: '엔카 매물 자동 평가 — AutoVerdict 11 룰 체크리스트',
   icons: {
     16: 'icons/icon-16.png',
     32: 'icons/icon-32.png',
@@ -12,7 +12,7 @@ export default defineManifest({
     128: 'icons/icon-128.png',
   },
   action: {
-    default_title: 'daksin-car',
+    default_title: 'AutoVerdict',
     default_icon: {
       16: 'icons/icon-16.png',
       32: 'icons/icon-32.png',

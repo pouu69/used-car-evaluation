@@ -26,17 +26,17 @@ ${GOOGLE_FONTS_IMPORT}
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: ${COLORS.white}; color: ${COLORS.black}; font-family: ${FONTS.body}; }
 
-@keyframes daksin-radar-draw {
+@keyframes autoverdict-radar-draw {
   from { stroke-dashoffset: 2000; }
   to { stroke-dashoffset: 0; }
 }
 
-@keyframes daksin-stagger-in {
+@keyframes autoverdict-stagger-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes daksin-fade {
+@keyframes autoverdict-fade {
   from { opacity: 0; }
   to { opacity: 1; }
 }

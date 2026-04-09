@@ -10,13 +10,13 @@ interface RuleCardProps {
 }
 
 export const css: string = `
-@keyframes daksin-stagger-in {
+@keyframes autoverdict-stagger-in {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
 .rc-stagger {
-  animation: daksin-stagger-in 300ms ease-out both;
+  animation: autoverdict-stagger-in 300ms ease-out both;
 }
 
 .rc-root {

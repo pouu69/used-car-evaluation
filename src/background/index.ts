@@ -86,7 +86,7 @@ const runMainWorldCollect = async (
     if (!first) return null;
     return (first.result as MainWorldPayload) ?? null;
   } catch (err) {
-    console.error('[daksin] executeScript failed', err);
+    console.error('[autoverdict] executeScript failed', err);
     return null;
   }
 };

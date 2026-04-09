@@ -32,7 +32,7 @@ export const css: string = `
   background: #fff;
   color: #000;
   border-bottom: 4px solid #000;
-  animation: daksin-fade 260ms ease-out both;
+  animation: autoverdict-fade 260ms ease-out both;
 }
 
 .ai-header {

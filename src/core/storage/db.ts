@@ -36,14 +36,14 @@ export interface SettingRow {
   value: unknown;
 }
 
-export class DaksinDB extends Dexie {
+export class AutoVerdictDB extends Dexie {
   cache!: Table<CacheRow, string>;
   acks!: Table<AckRow, [string, string]>;
   saved!: Table<SavedRow, string>;
   settings!: Table<SettingRow, string>;
 
   constructor() {
-    super('daksin-car');
+    super('autoverdict');
     this.version(1).stores({
       cache: 'carId, cachedAt, expiresAt',
       acks: '[carId+ruleId], expiresAt',
@@ -56,9 +56,9 @@ export class DaksinDB extends Dexie {
 export const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 export const ACK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-let _db: DaksinDB | null = null;
-export const getDb = (): DaksinDB => {
-  if (!_db) _db = new DaksinDB();
+let _db: AutoVerdictDB | null = null;
+export const getDb = (): AutoVerdictDB => {
+  if (!_db) _db = new AutoVerdictDB();
   return _db;
 };
 

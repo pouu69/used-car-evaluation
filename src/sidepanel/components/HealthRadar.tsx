@@ -7,16 +7,16 @@ interface HealthRadarProps {
 }
 
 export const css: string = `
-  .daksin-radar-container {
+  .autoverdict-radar-container {
     padding: 4px 14px 12px;
     border-bottom: 4px solid #000;
   }
-  .daksin-radar-header {
+  .autoverdict-radar-header {
     display: flex;
     justify-content: flex-end;
     margin-bottom: 2px;
   }
-  .daksin-radar-header-text {
+  .autoverdict-radar-header-text {
     text-align: right;
     font-family: 'Space Mono', monospace;
     font-size: 9px;
@@ -24,21 +24,21 @@ export const css: string = `
     letter-spacing: 2px;
     line-height: 1.4;
   }
-  .daksin-radar-header-title {
+  .autoverdict-radar-header-title {
     opacity: 1;
   }
-  .daksin-radar-header-index {
+  .autoverdict-radar-header-index {
     opacity: 0.5;
   }
-  .daksin-radar-svg {
+  .autoverdict-radar-svg {
     width: 100%;
     max-width: 340px;
     height: auto;
     display: block;
     margin: 0 auto;
   }
-  .daksin-radar-poly {
-    animation: daksin-radar-draw 500ms ease-out both;
+  .autoverdict-radar-poly {
+    animation: autoverdict-radar-draw 500ms ease-out both;
     stroke-dasharray: 2000;
   }
 `;
@@ -91,22 +91,22 @@ export const HealthRadar: React.FC<HealthRadarProps> = ({ results }) => {
   });
 
   return (
-    <div className="daksin-radar-container">
-      <div className="daksin-radar-header">
-        <div className="daksin-radar-header-text">
-          <div className="daksin-radar-header-title">◇ HEALTH RADAR</div>
-          <div className="daksin-radar-header-index">01 / 02</div>
+    <div className="autoverdict-radar-container">
+      <div className="autoverdict-radar-header">
+        <div className="autoverdict-radar-header-text">
+          <div className="autoverdict-radar-header-title">◇ HEALTH RADAR</div>
+          <div className="autoverdict-radar-header-index">01 / 02</div>
         </div>
       </div>
       <svg
         viewBox="-30 -10 420 330"
-        className="daksin-radar-svg"
+        className="autoverdict-radar-svg"
         aria-label="Health radar chart"
       >
         {/* Diagonal hatch pattern for data polygon fill */}
         <defs>
           <pattern
-            id="daksin-hatch"
+            id="autoverdict-hatch"
             patternUnits="userSpaceOnUse"
             width={6}
             height={6}
@@ -154,10 +154,10 @@ export const HealthRadar: React.FC<HealthRadarProps> = ({ results }) => {
         {/* Data polygon — yellow bg + black diagonal hatch */}
         <polygon
           points={pointsStr(dataPoints)}
-          fill="url(#daksin-hatch)"
+          fill="url(#autoverdict-hatch)"
           stroke="#000"
           strokeWidth={3}
-          className="daksin-radar-poly"
+          className="autoverdict-radar-poly"
         />
 
         {/* Vertex dots */}

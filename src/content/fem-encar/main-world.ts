@@ -46,7 +46,7 @@ interface Payload {
   errors: Record<string, string>;
 }
 
-const log = (...args: unknown[]) => console.log('[daksin:main]', ...args);
+const log = (...args: unknown[]) => console.log('[autoverdict:main]', ...args);
 
 const readNextData = (): unknown => {
   const el = document.getElementById('__NEXT_DATA__');
@@ -190,7 +190,7 @@ const getPayload = (): Promise<Payload> => {
 const post = async (reqId: string | null): Promise<void> => {
   const payload = await getPayload();
   window.postMessage(
-    { source: 'daksin-car/main-world', kind: 'state', reqId, payload },
+    { source: 'autoverdict/main-world', kind: 'state', reqId, payload },
     '*',
   );
 };
@@ -205,7 +205,7 @@ window.addEventListener('message', (e: MessageEvent) => {
     e.source === window &&
     typeof data === 'object' &&
     data !== null &&
-    (data as { source?: string }).source === 'daksin-car/isolated' &&
+    (data as { source?: string }).source === 'autoverdict/isolated' &&
     (data as { kind?: string }).kind === 'request_state'
   ) {
     const reqId = (data as { reqId?: string }).reqId ?? null;

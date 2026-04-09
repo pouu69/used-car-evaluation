@@ -55,7 +55,7 @@ const requestMainWorldPayload = (
         e.source === window &&
         typeof data === 'object' &&
         data !== null &&
-        (data as { source?: string }).source === 'daksin-car/main-world' &&
+        (data as { source?: string }).source === 'autoverdict/main-world' &&
         (data as { kind?: string }).kind === 'state'
       ) {
         const inReqId = (data as { reqId?: string | null }).reqId;
@@ -66,7 +66,7 @@ const requestMainWorldPayload = (
     };
     window.addEventListener('message', onMessage);
     window.postMessage(
-      { source: 'daksin-car/isolated', kind: 'request_state', reqId },
+      { source: 'autoverdict/isolated', kind: 'request_state', reqId },
       '*',
     );
     setTimeout(() => finish(null), 15_000);
@@ -89,13 +89,13 @@ const collect = async (force = false): Promise<void> => {
 
   try {
     const reqId = `r${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    console.log('[daksin:iso] collect start', { carId, reqId });
+    console.log('[autoverdict:iso] collect start', { carId, reqId });
     const payload = await requestMainWorldPayload(reqId);
     if (!payload) {
-      console.warn('[daksin:iso] main-world payload null (timeout)');
+      console.warn('[autoverdict:iso] main-world payload null (timeout)');
       return;
     }
-    console.log('[daksin:iso] payload received', {
+    console.log('[autoverdict:iso] payload received', {
       hasState: !!payload.preloadedState,
       hasRecord: !!payload.recordJson,
       hasDiagnosis: !!payload.diagnosisJson,
@@ -117,7 +117,7 @@ const collect = async (force = false): Promise<void> => {
       },
     };
     chrome.runtime.sendMessage(msg).catch((e) =>
-      console.error('[daksin:iso] sendMessage failed', e),
+      console.error('[autoverdict:iso] sendMessage failed', e),
     );
   } finally {
     setTimeout(() => {
@@ -134,7 +134,7 @@ const patch = (name: 'pushState' | 'replaceState') => {
     ...args: Parameters<History[typeof name]>
   ) {
     const ret = (original as (...a: typeof args) => void).apply(this, args);
-    window.dispatchEvent(new Event('daksin:urlchange'));
+    window.dispatchEvent(new Event('autoverdict:urlchange'));
     return ret;
   } as History[typeof name];
 };
@@ -143,7 +143,7 @@ patch('replaceState');
 
 const onUrlChange = () => void collect(true);
 window.addEventListener('popstate', onUrlChange);
-window.addEventListener('daksin:urlchange', onUrlChange);
+window.addEventListener('autoverdict:urlchange', onUrlChange);
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (

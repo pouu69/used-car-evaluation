@@ -15,7 +15,7 @@ interface FilterTabsProps {
 }
 
 export const css: string = `
-  .daksin-filter-tabs {
+  .autoverdict-filter-tabs {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
     border-bottom: 4px solid #000;
@@ -105,7 +105,7 @@ export const FilterTabs: React.FC<FilterTabsProps> = ({ counts, active, onChange
   ];
 
   return (
-    <div className="daksin-filter-tabs">
+    <div className="autoverdict-filter-tabs">
       {tabs.map(({ id, count, label }) => (
         <button
           key={id}

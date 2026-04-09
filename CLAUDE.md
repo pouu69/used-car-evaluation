@@ -1,4 +1,4 @@
-# daksin-car — Claude Code Guide
+# AutoVerdict (오토버딕트) — Claude Code Guide
 
 Chrome 확장: 엔카 매물 자동 평가 사이드패널.
 

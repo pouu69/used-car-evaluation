@@ -20,6 +20,23 @@ export const FONTS = {
 
 export const GOOGLE_FONTS_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Mono:wght@400;700&family=Inter+Tight:wght@400;600;700;800&display=swap');`;
 
+/**
+ * Shared container styles for standalone state views
+ * (EmptyState / LoadingView / ErrorView). Callers compose this into their
+ * own CSS strings under a component-scoped class selector.
+ */
+export const STATE_CONTAINER_CSS = `
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 40px 20px;
+  border: 4px solid ${COLORS.black};
+  margin: 20px;
+  background: ${COLORS.white};
+  text-align: center;
+`;
+
 export const globalCss = `
 ${GOOGLE_FONTS_IMPORT}
 

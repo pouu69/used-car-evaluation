@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { STATE_CONTAINER_CSS } from '../theme.js';
 
 interface LoadingViewProps {
   stage: string | null;
@@ -13,15 +14,7 @@ const STAGE_LABEL: Record<string, string> = {
 
 export const css = `
 .lv-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 40px 20px;
-  border: 4px solid #000;
-  margin: 20px;
-  background: #fff;
-  text-align: center;
+  ${STATE_CONTAINER_CSS}
 }
 .lv-title {
   font-family: 'Archivo Black', sans-serif;

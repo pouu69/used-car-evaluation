@@ -1,4 +1,5 @@
 import React from 'react';
+import { STATE_CONTAINER_CSS } from '../theme.js';
 
 interface ErrorViewProps {
   reason: string;
@@ -8,15 +9,7 @@ interface ErrorViewProps {
 export const css = `
 .ev-container {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 16px;
-  padding: 40px 20px;
-  border: 4px solid #000;
-  margin: 20px;
-  background: #fff;
-  text-align: center;
+  ${STATE_CONTAINER_CSS}
 }
 .ev-dot {
   position: absolute;

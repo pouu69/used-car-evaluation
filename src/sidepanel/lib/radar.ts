@@ -1,5 +1,6 @@
 import type { RuleResult } from '@/core/types/RuleTypes.js';
 import { CATEGORY_ORDER, type Category, RULE_META } from '../rule-meta.js';
+import { passRatio } from './percent.js';
 
 export interface RadarAxis {
   category: Category;
@@ -16,7 +17,7 @@ export function computeRadarAxes(results: RuleResult[]): RadarAxis[] {
     });
     const total = matching.length;
     const pass = matching.filter(r => r.severity === 'pass').length;
-    const pct = total > 0 ? Math.round(pass / total * 100) : 0;
+    const pct = passRatio(pass, total);
     return { category, pass, total, pct };
   });
 }

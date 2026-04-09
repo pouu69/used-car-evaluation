@@ -36,12 +36,10 @@ const evaluationBodySchema = z.object({
   dataQualityWarnings: z.array(z.string()).default([]),
 });
 
-export interface EvaluateCarOptions {
-  client: LLMClient;
-  input: EvaluationInput;
+/** LLM 호출 파라미터 그룹. 모두 optional. */
+export interface LLMCallOptions {
   /** provider 기본 모델을 override 하고 싶을 때만. */
   model?: string;
-  signal?: AbortSignal;
   /** 기본 0.2. 결정적인 평가를 위해 낮게. */
   temperature?: number;
   /**
@@ -52,6 +50,15 @@ export interface EvaluateCarOptions {
    * Gemini 2.5 flash-lite 기준 출력 1k 토큰 < $0.0005.
    */
   maxTokens?: number;
+}
+
+export interface EvaluateCarOptions extends LLMCallOptions {
+  client: LLMClient;
+  input: EvaluationInput;
+  /** AbortSignal — LLM 설정과 직교해서 top-level 에 둔다. */
+  signal?: AbortSignal;
+  /** 그룹화된 LLM 파라미터. top-level 필드보다 우선한다. */
+  llm?: LLMCallOptions;
 }
 
 const DEFAULT_MAX_TOKENS = 1024;
@@ -94,15 +101,19 @@ export const evaluateCar = async (
     { role: 'user' as const, content: user },
   ];
 
-  const firstBudget = opts.maxTokens ?? DEFAULT_MAX_TOKENS;
+  // Grouped `llm` field wins over top-level backwards-compat aliases.
+  const model = opts.llm?.model ?? opts.model;
+  const temperature = opts.llm?.temperature ?? opts.temperature;
+  const explicitMaxTokens = opts.llm?.maxTokens ?? opts.maxTokens;
+  const firstBudget = explicitMaxTokens ?? DEFAULT_MAX_TOKENS;
 
   const call = (maxTokens: number) =>
     opts.client.complete({
       messages,
       responseFormat: 'json_object',
-      temperature: opts.temperature ?? 0.2,
+      temperature: temperature ?? 0.2,
       maxTokens,
-      model: opts.model,
+      model,
       signal: opts.signal,
     });
 
@@ -115,7 +126,7 @@ export const evaluateCar = async (
     // their own override. This gives the prompt a second chance to finish
     // cleanly without silently burning cost on every call.
     if (
-      opts.maxTokens === undefined &&
+      explicitMaxTokens === undefined &&
       err instanceof LLMError &&
       /MAX_TOKENS/i.test(err.message)
     ) {

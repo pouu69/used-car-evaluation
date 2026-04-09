@@ -1,6 +1,7 @@
 import React from 'react';
 import type { RuleResult } from '@/core/types/RuleTypes.js';
 import type { Category } from '../rule-meta.js';
+import { getHealthLevel, passRatio } from '../lib/percent.js';
 import { RuleCard } from './RuleCard.js';
 
 interface RuleGroupProps {
@@ -57,12 +58,13 @@ export const RuleGroup: React.FC<RuleGroupProps> = ({
 }) => {
   const total = rules.length;
   const passCount = rules.filter((r) => r.severity === 'pass').length;
-  const ratio = total > 0 ? passCount / total : 0;
+  const ratio = passRatio(passCount, total);
+  const health = getHealthLevel(ratio);
 
   const countClass =
-    ratio < 0.5
+    health === 'bad'
       ? 'rg-count rg-count--danger'
-      : ratio >= 0.8
+      : health === 'good'
         ? 'rg-count rg-count--good'
         : 'rg-count rg-count--normal';
 

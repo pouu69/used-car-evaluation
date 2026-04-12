@@ -14,6 +14,16 @@ import type { FieldStatus } from '../types/FieldStatus.js';
 
 const ev = (field: string, value: unknown) => ({ field, value });
 
+// ── Rule thresholds ─────────────────────────────────────────────
+/** R07: 소유자 변경 2회까지 정상, 3회부터 warn */
+const R07_OWNER_WARN_THRESHOLD = 2;
+/** R10: 경미 사고 상한 — 국산 200만원, 수입 400만원 */
+const R10_MILD_CEILING_DOMESTIC = 2_000_000;
+const R10_MILD_CEILING_IMPORT = 4_000_000;
+/** R11: 신차대비 가격 비율 경계 */
+const R11_SUSPICIOUSLY_LOW_RATIO = 0.45;
+const R11_OVERPRICED_RATIO = 1.15;
+
 const REASON_LABEL: Record<string, string> = {
   login_required: '🔒 로그인 필요 (엔카 로그인 후 재평가)',
   not_fetched: '수집 대기 중',
@@ -213,8 +223,7 @@ export const r06: Rule = (f) => {
 export const r07: Rule = (f) => {
   const s = f.ownerChangeCount;
   if (!isValue(s)) return unknownResult('R07', '소유자 변경', s);
-  // 2회까지는 실사용 패턴으로 흔함. 3회 이상부터 warn.
-  if (s.value <= 2) {
+  if (s.value <= R07_OWNER_WARN_THRESHOLD) {
     return {
       ruleId: 'R07',
       title: '소유자 변경',
@@ -309,9 +318,7 @@ export const r10: Rule = (f) => {
     };
   }
 
-  // 경미 상한: 국산 200만원, 수입 400만원.
-  // 이하면 '경미', 초과면 '주의'. 임계 단일값은 없고 range 기반 표기.
-  const mildCeiling = domestic ? 2_000_000 : 4_000_000;
+  const mildCeiling = domestic ? R10_MILD_CEILING_DOMESTIC : R10_MILD_CEILING_IMPORT;
   const bracketLabel = domestic ? '국산 200만원' : '수입 400만원';
   const max = Math.max(ownDamageWon, otherDamageWon);
 
@@ -348,9 +355,7 @@ export const r11: Rule = (f) => {
   // 엔카가 신차가(baseline)를 제공하지 않으면 시세 비교가 애초에 불가능 →
   // unknown 으로 자리만 차지하지 말고 결과에서 완전히 드랍한다.
   if (ratio === 0) return null;
-  // 옵션·연식이 낮으면 100% 초과는 흔함 → 115%부터 과한 가격으로 경고.
-  // 45% 미만은 여전히 사고매물/이상매물 가능성 ↑.
-  if (ratio < 0.45) {
+  if (ratio < R11_SUSPICIOUSLY_LOW_RATIO) {
     return {
       ruleId: 'R11',
       title: '가격 적정성',
@@ -360,7 +365,7 @@ export const r11: Rule = (f) => {
       acknowledgeable: false,
     };
   }
-  if (ratio > 1.15) {
+  if (ratio > R11_OVERPRICED_RATIO) {
     return {
       ruleId: 'R11',
       title: '가격 적정성',

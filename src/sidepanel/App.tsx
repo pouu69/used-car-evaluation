@@ -1,14 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { RuleResult } from '@/core/types/RuleTypes.js';
 import { CATEGORY_ORDER, RULE_META, type Category } from './rule-meta.js';
 import { AiEvaluationPanel, css as aiPanelCss } from './AiEvaluationPanel.js';
 import { globalCss } from './theme.js';
 import { useCarData, isEncarDetail } from './hooks/useCarData.js';
-import type { CacheRow } from '@/core/storage/db.js';
-import type { Message } from '@/core/messaging/protocol.js';
-import type { SavedRow } from '@/core/storage/saved.js';
-import type { ChecklistFacts } from '@/core/types/ChecklistFacts.js';
-import type { RuleReport } from '@/core/types/RuleTypes.js';
+import { useSavedCars } from './hooks/useSavedCars.js';
 
 import {
   Hero,
@@ -153,74 +149,20 @@ export const App: React.FC = () => {
     useCarData();
   const [tab, setTab] = useState<Tab>('checklist');
   const [filter, setFilter] = useState<Filter>('all');
-  const [savedState, setSavedState] = useState(false);
-  const [savedListKey, setSavedListKey] = useState(0);
-  const [viewingSavedCarId, setViewingSavedCarId] = useState<string | null>(null);
-  const [savedRow, setSavedRow] = useState<CacheRow | null>(null);
+  const {
+    savedState,
+    savedListKey,
+    viewingSavedCarId,
+    savedRow,
+    handleToggleSave,
+    handleViewSavedCar: viewSavedCar,
+    clearOverride,
+  } = useSavedCars(row);
 
-  // The car currently being displayed — saved car override or live tab.
-  const displayedCarId = viewingSavedCarId ?? row?.carId ?? null;
-
-  // Check if displayed car is saved whenever it changes.
-  useEffect(() => {
-    if (!displayedCarId) return;
-    chrome.runtime
-      .sendMessage<Message>({ type: 'IS_SAVED', carId: displayedCarId })
-      .then((resp) => setSavedState((resp as { saved: boolean })?.saved ?? false))
-      .catch(() => setSavedState(false));
-  }, [displayedCarId]);
-
-  const handleToggleSave = useCallback(async () => {
-    const target = viewingSavedCarId ? savedRow : row;
-    if (!target) return;
-    if (savedState) {
-      await chrome.runtime
-        .sendMessage<Message>({ type: 'UNSAVE_CAR', carId: target.carId })
-        .catch(() => {});
-      setSavedState(false);
-      setSavedListKey((k) => k + 1);
-    } else {
-      const res = await chrome.runtime
-        .sendMessage<Message>({
-          type: 'SAVE_CAR',
-          carId: target.carId,
-          url: target.url,
-          parsed: target.parsed,
-        })
-        .catch(() => ({ ok: false }));
-      if (res?.reason === 'limit') return;
-      setSavedState(true);
-      setSavedListKey((k) => k + 1);
-    }
-  }, [viewingSavedCarId, savedRow, row, savedState]);
-
-  const handleViewSavedCar = useCallback(async (carId: string) => {
-    // If the clicked car IS the live tab's car, just switch to checklist
-    // without setting an override — no need to load saved snapshot.
-    if (row && row.carId === carId) {
-      setViewingSavedCarId(null);
-      setSavedRow(null);
-      setTab('checklist');
-      return;
-    }
-    // Different car — load saved snapshot as override.
-    const found = (await chrome.runtime.sendMessage<Message>({
-      type: 'GET_SAVED_ONE',
-      carId,
-    })) as (SavedRow & { facts: ChecklistFacts; report: RuleReport }) | null;
-    if (!found) return;
-    setSavedRow({
-      carId: found.carId,
-      url: found.url,
-      parsed: found.parsed,
-      facts: found.facts,
-      report: found.report,
-      cachedAt: found.updatedAt,
-      expiresAt: found.expiresAt,
-    });
-    setViewingSavedCarId(carId);
+  const handleViewSavedCar = async (carId: string) => {
+    await viewSavedCar(carId);
     setTab('checklist');
-  }, [row]);
+  };
 
   // Use savedRow when viewing a saved car, otherwise use live row.
   const effectiveRow = viewingSavedCarId ? savedRow : row;
@@ -309,10 +251,7 @@ export const App: React.FC = () => {
             borderBottom: '3px solid #000',
             cursor: 'pointer',
           }}
-          onClick={() => {
-            setViewingSavedCarId(null);
-            setSavedRow(null);
-          }}
+          onClick={clearOverride}
         >
           ← BACK TO LIVE TAB
         </button>

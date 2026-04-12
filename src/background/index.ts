@@ -10,25 +10,28 @@ import { encarToFacts } from '@/core/bridge/encar-to-facts';
 import { evaluate } from '@/core/rules/index';
 import { CACHE_TTL_MS, getDb, sweepExpired } from '@/core/storage/db';
 import {
-  isAckRule,
   isCollectForTab,
   isCollectRequest,
-  isGetLast,
   isMessage,
-  isRefresh,
-  isSaveCar,
-  isUnsaveCar,
-  isGetSavedList,
-  isGetSavedOne,
-  isIsSaved,
   type Message,
 } from '@/core/messaging/protocol';
-import { buildSavedRow, SAVED_TTL_MS, extractSpecs } from '@/core/storage/saved';
+import { SAVED_TTL_MS, extractSpecs } from '@/core/storage/saved';
 import {
   mainWorldCollect,
   type MainWorldPayload,
   type FetchStatus,
 } from './main-world-collector';
+import {
+  handleRefresh,
+  handleGetLast,
+  handleAckRule,
+  handleSaveCar,
+  handleUnsaveCar,
+  handleGetSavedList,
+  handleGetSavedOne,
+  handleIsSaved,
+  refreshSavedRowIfExists,
+} from './handlers';
 import { createLogger } from '@/core/log';
 
 const logger = createLogger('autoverdict:bg');
@@ -128,26 +131,13 @@ const collectFor = async (
   const db = getDb();
   const cached = await db.cache.get(carId);
   if (cached && cached.expiresAt > Date.now()) {
-    // facts/report는 규칙 엔진이 계속 바뀔 수 있으므로 매 캐시 히트마다
-    // parsed로부터 재계산한다. (cache에 남은 구버전 보고서를 그대로 리턴하면
-    // 규칙 로직 업데이트가 화면에 반영되지 않아 혼란스럽다.)
     const facts = encarToFacts(cached.parsed);
     const report = evaluate(facts);
-    return {
-      type: 'COLLECT_RESULT',
-      carId,
-      parsed: cached.parsed,
-      facts,
-      report,
-    };
+    return { type: 'COLLECT_RESULT', carId, parsed: cached.parsed, facts, report };
   }
 
   broadcast({ type: 'COLLECT_PROGRESS', carId, stage: 'fetching_reports' });
 
-  // Prefer the payload sent by the content script (it already executed in the
-  // page's main world and captured __PRELOADED_STATE__ + api.encar.com JSON).
-  // Fall back to chrome.scripting.executeScript when invoked from the side
-  // panel without an upstream content script payload.
   let input: CollectInput | null = opts.inPageData ?? null;
   if (!input && opts.tabId !== undefined) {
     const payload = await runMainWorldCollect(opts.tabId);
@@ -163,11 +153,7 @@ const collectFor = async (
     }
   }
   if (!input) {
-    return {
-      type: 'COLLECT_ERROR',
-      carId,
-      reason: 'no_in_page_data',
-    };
+    return { type: 'COLLECT_ERROR', carId, reason: 'no_in_page_data' };
   }
 
   const parsed = orchestrate({
@@ -198,177 +184,75 @@ const collectFor = async (
     expiresAt: now + CACHE_TTL_MS,
   });
 
-  const existingSaved = await db.saved.get(carId);
-  if (existingSaved && existingSaved.expiresAt > now) {
-    await db.saved.update(carId, {
-      ...extractSpecs(parsed.raw.base),
-      parsed,
-      updatedAt: now,
-      expiresAt: now + SAVED_TTL_MS,
-    });
-  }
+  await refreshSavedRowIfExists(carId, parsed);
 
   return { type: 'COLLECT_RESULT', carId, parsed, facts, report };
+};
+
+const WATCHDOG_MS = 18_000;
+
+const runCollectJob = (
+  carId: string,
+  url: string,
+  opts: { tabId?: number; inPageData?: CollectInput },
+  sendResponse: (msg: Message) => void,
+) => {
+  broadcast({ type: 'COLLECT_PROGRESS', carId, stage: 'start' });
+  const watchdog = new Promise<Message>((resolve) => {
+    setTimeout(
+      () => resolve({ type: 'COLLECT_ERROR', carId, reason: 'watchdog_timeout' }),
+      WATCHDOG_MS,
+    );
+  });
+  Promise.race([
+    collectFor(carId, url, opts).catch(
+      (err): Message => ({ type: 'COLLECT_ERROR', carId, reason: String(err) }),
+    ),
+    watchdog,
+  ]).then((result) => {
+    try { sendResponse(result); } catch { /* port may be closed */ }
+    broadcast(result);
+  });
+};
+
+// ── Message type → handler dispatch map ─────────────────────────
+
+type AsyncHandler = (msg: never, sender: chrome.runtime.MessageSender) => Promise<unknown>;
+
+const messageHandlers: Record<string, AsyncHandler> = {
+  REFRESH: (msg) => handleRefresh(msg as Extract<Message, { type: 'REFRESH' }>),
+  GET_LAST: (msg) => handleGetLast(msg as Extract<Message, { type: 'GET_LAST' }>),
+  ACK_RULE: (msg) => handleAckRule(msg as Extract<Message, { type: 'ACK_RULE' }>),
+  SAVE_CAR: (msg) => handleSaveCar(msg as Extract<Message, { type: 'SAVE_CAR' }>),
+  UNSAVE_CAR: (msg) => handleUnsaveCar(msg as Extract<Message, { type: 'UNSAVE_CAR' }>),
+  GET_SAVED_LIST: () => handleGetSavedList(),
+  GET_SAVED_ONE: (msg) => handleGetSavedOne(msg as Extract<Message, { type: 'GET_SAVED_ONE' }>),
+  IS_SAVED: (msg) => handleIsSaved(msg as Extract<Message, { type: 'IS_SAVED' }>),
 };
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!isMessage(msg)) return false;
 
-  const runCollectJob = (
-    carId: string,
-    url: string,
-    opts: { tabId?: number; inPageData?: CollectInput },
-    sendResponse: (msg: Message) => void,
-  ) => {
-    broadcast({ type: 'COLLECT_PROGRESS', carId, stage: 'start' });
-    const watchdog = new Promise<Message>((resolve) => {
-      setTimeout(
-        () =>
-          resolve({
-            type: 'COLLECT_ERROR',
-            carId,
-            reason: 'watchdog_timeout',
-          }),
-        18_000,
-      );
-    });
-    Promise.race([
-      collectFor(carId, url, opts).catch(
-        (err): Message => ({
-          type: 'COLLECT_ERROR',
-          carId,
-          reason: String(err),
-        }),
-      ),
-      watchdog,
-    ]).then((result) => {
-      try {
-        sendResponse(result);
-      } catch {
-        /* port may be closed */
-      }
-      broadcast(result);
-    });
-  };
-
+  // Collect messages need special handling (watchdog race, broadcast).
   if (isCollectRequest(msg)) {
     runCollectJob(
-      msg.carId,
-      msg.url,
+      msg.carId, msg.url,
       { tabId: sender.tab?.id, inPageData: msg.inPageData },
       sendResponse,
     );
     return true;
   }
-
   if (isCollectForTab(msg)) {
     runCollectJob(msg.carId, msg.url, { tabId: msg.tabId }, sendResponse);
     return true;
   }
 
-  if (isRefresh(msg)) {
-    getDb().cache.delete(msg.carId).catch(() => {});
-    sendResponse({ ok: true });
-    return false;
-  }
-
-  if (isGetLast(msg)) {
-    (async () => {
-      const db = getDb();
-      const row = msg.carId
-        ? await db.cache.get(msg.carId)
-        : (await db.cache.orderBy('cachedAt').reverse().limit(1).toArray())[0];
-      if (!row) {
-        sendResponse(null);
-        return;
-      }
-      // 캐시에 저장된 facts/report는 규칙 로직이 바뀌면 즉시 stale이 된다.
-      // parsed만 신뢰하고 매 조회마다 facts/report를 재계산해서 최신 룰 버전을
-      // 항상 반영한다. (확장 reload만 하면 바로 새 메시지가 화면에 뜸.)
-      const facts = encarToFacts(row.parsed);
-      const report = evaluate(facts);
-      sendResponse({ ...row, facts, report });
-    })();
-    return true;
-  }
-
-  if (isAckRule(msg)) {
-    const now = Date.now();
-    getDb()
-      .acks.put({
-        carId: msg.carId,
-        ruleId: msg.ruleId,
-        ackedAt: now,
-        expiresAt: now + 7 * 24 * 60 * 60 * 1000,
-      })
-      .then(() => sendResponse({ ok: true }))
+  // All other message types go through the dispatch map.
+  const handler = messageHandlers[msg.type];
+  if (handler) {
+    handler(msg as never, sender)
+      .then((result) => sendResponse(result))
       .catch(() => sendResponse({ ok: false }));
-    return true;
-  }
-
-  if (isSaveCar(msg)) {
-    const db = getDb();
-    db.saved
-      .count()
-      .then((count) => {
-        if (count >= 10) {
-          return sendResponse({ ok: false, reason: 'limit' });
-        }
-        const row = buildSavedRow(msg.carId, msg.url, msg.parsed);
-        return db.saved
-          .put(row)
-          .then(() => sendResponse({ ok: true }));
-      })
-      .catch(() => sendResponse({ ok: false }));
-    return true;
-  }
-
-  if (isUnsaveCar(msg)) {
-    getDb()
-      .saved.delete(msg.carId)
-      .then(() => sendResponse({ ok: true }))
-      .catch(() => sendResponse({ ok: false }));
-    return true;
-  }
-
-  if (isGetSavedList(msg)) {
-    (async () => {
-      const db = getDb();
-      const now = Date.now();
-      const rows = await db.saved.where('expiresAt').above(now).toArray();
-      rows.sort((a, b) => b.savedAt - a.savedAt);
-      const enriched = rows.map((row) => {
-        const facts = encarToFacts(row.parsed);
-        const report = evaluate(facts);
-        return { ...row, facts, report };
-      });
-      sendResponse(enriched);
-    })();
-    return true;
-  }
-
-  if (isGetSavedOne(msg)) {
-    (async () => {
-      const db = getDb();
-      const row = await db.saved.get(msg.carId);
-      if (!row || row.expiresAt <= Date.now()) {
-        sendResponse(null);
-        return;
-      }
-      const facts = encarToFacts(row.parsed);
-      const report = evaluate(facts);
-      sendResponse({ ...row, facts, report });
-    })();
-    return true;
-  }
-
-  if (isIsSaved(msg)) {
-    (async () => {
-      const db = getDb();
-      const now = Date.now();
-      const row = await db.saved.get(msg.carId);
-      sendResponse({ saved: !!(row && row.expiresAt > now) });
-    })();
     return true;
   }
 

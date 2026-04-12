@@ -204,7 +204,7 @@ export const App: React.FC = () => {
   // Clears viewingSavedCarId when switching away from checklist.
   const changeTab = useCallback((t: Tab) => {
     setTab(t);
-    if (t !== 'checklist') {
+    if (t === 'ai') {
       setViewingSavedCarId(null);
       setSavedRow(null);
     }

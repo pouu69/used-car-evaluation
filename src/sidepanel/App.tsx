@@ -66,9 +66,9 @@ import { SavedList, css as savedListCss } from './components/SavedList.js';
  * Transitions:
  *   MyList card click (same as live carId) → LIVE + checklist
  *   MyList card click (different carId)    → SAVED_OVERRIDE + checklist
- *   Tab → ai                              → LIVE (clears override)
+ *   Tab → ai                              → disabled during SAVED_OVERRIDE
  *   Tab → checklist / mylist              → keeps current ViewMode
- *   "Back to live" click                  → LIVE + checklist
+ *   "Back to live" click                  → LIVE + current tab
  *   Save / Unsave                         → updates savedState only
  *
  * effectiveRow = viewingSavedCarId ? savedRow : row
@@ -221,13 +221,8 @@ export const App: React.FC = () => {
     setTab('checklist');
   }, [row]);
 
-  // Clears viewingSavedCarId when switching away from checklist.
   const changeTab = useCallback((t: Tab) => {
     setTab(t);
-    if (t === 'ai') {
-      setViewingSavedCarId(null);
-      setSavedRow(null);
-    }
   }, []);
 
   // Use savedRow when viewing a saved car, otherwise use live row.
@@ -328,7 +323,11 @@ export const App: React.FC = () => {
         carId={(effectiveRow ?? row).carId}
       />
       <SaveButton saved={savedState} onToggle={handleToggleSave} />
-      <TabBar tab={tab} onChange={changeTab} />
+      <TabBar
+        tab={tab}
+        onChange={changeTab}
+        disabledTabs={viewingSavedCarId ? ['ai'] : []}
+      />
 
       {tab === 'checklist' && (
         <>

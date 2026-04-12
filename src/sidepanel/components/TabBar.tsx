@@ -5,6 +5,7 @@ export type Tab = 'checklist' | 'ai' | 'mylist';
 interface TabBarProps {
   tab: Tab;
   onChange: (t: Tab) => void;
+  disabledTabs?: Tab[];
 }
 
 const TABS: Array<{ id: Tab; label: string; sub: string }> = [
@@ -55,17 +56,30 @@ export const css: string = `
 .tab-bar-btn--inactive .tab-bar-sub {
   opacity: 0.6;
 }
+.tab-bar-btn--disabled {
+  background: #e0e0e0;
+  color: #999;
+  cursor: not-allowed;
+}
+.tab-bar-btn--disabled .tab-bar-sub {
+  opacity: 0.4;
+}
 `;
 
-export const TabBar: React.FC<TabBarProps> = ({ tab, onChange }) => (
+export const TabBar: React.FC<TabBarProps> = ({ tab, onChange, disabledTabs = [] }) => (
   <div className="tab-bar">
     {TABS.map((t) => {
       const active = tab === t.id;
+      const disabled = disabledTabs.includes(t.id);
+      const cls = disabled
+        ? 'tab-bar-btn tab-bar-btn--disabled'
+        : `tab-bar-btn ${active ? 'tab-bar-btn--active' : 'tab-bar-btn--inactive'}`;
       return (
         <button
           key={t.id}
-          className={`tab-bar-btn ${active ? 'tab-bar-btn--active' : 'tab-bar-btn--inactive'}`}
-          onClick={() => onChange(t.id)}
+          className={cls}
+          disabled={disabled}
+          onClick={() => !disabled && onChange(t.id)}
         >
           {t.label}
           <span className="tab-bar-sub">{t.sub}</span>

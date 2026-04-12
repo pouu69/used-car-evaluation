@@ -59,16 +59,20 @@ import { SavedList, css as savedListCss } from './components/SavedList.js';
 /**
  * Brutalist Scoreboard shell.
  *
- * Owns:
- *  - data loading via useCarData
- *  - tab ('checklist' | 'ai' | 'mylist')
- *  - filter ('all' | 'fatal' | 'warn' | 'pass' | 'na')
- *  - savedState (is current car saved)
- *  - viewingSavedCarId (non-null when browsing a saved car in checklist view)
+ * State machine — two axes:
+ *   ViewMode: LIVE (viewingSavedCarId=null) | SAVED_OVERRIDE (viewingSavedCarId≠null)
+ *   Tab:      checklist | ai | mylist
  *
- * Everything else is delegated to focused components. Each component
- * exports its own `css` string; we concatenate them here into a single
- * <style> so no CSS-in-JS library is needed.
+ * Transitions:
+ *   MyList card click (same as live carId) → LIVE + checklist
+ *   MyList card click (different carId)    → SAVED_OVERRIDE + checklist
+ *   Tab → ai                              → LIVE (clears override)
+ *   Tab → checklist / mylist              → keeps current ViewMode
+ *   "Back to live" click                  → LIVE + checklist
+ *   Save / Unsave                         → updates savedState only
+ *
+ * effectiveRow = viewingSavedCarId ? savedRow : row
+ *   — single source of truth for Hero, CarStrip, SaveButton, and tab content.
  */
 
 const SHEET =
@@ -190,6 +194,15 @@ export const App: React.FC = () => {
   }, [viewingSavedCarId, savedRow, row, savedState]);
 
   const handleViewSavedCar = useCallback(async (carId: string) => {
+    // If the clicked car IS the live tab's car, just switch to checklist
+    // without setting an override — no need to load saved snapshot.
+    if (row && row.carId === carId) {
+      setViewingSavedCarId(null);
+      setSavedRow(null);
+      setTab('checklist');
+      return;
+    }
+    // Different car — load saved snapshot as override.
     const found = (await chrome.runtime.sendMessage<Message>({
       type: 'GET_SAVED_ONE',
       carId,
@@ -206,7 +219,7 @@ export const App: React.FC = () => {
     });
     setViewingSavedCarId(carId);
     setTab('checklist');
-  }, []);
+  }, [row]);
 
   // Clears viewingSavedCarId when switching away from checklist.
   const changeTab = useCallback((t: Tab) => {
@@ -305,21 +318,21 @@ export const App: React.FC = () => {
         </button>
       )}
       <Hero
-        score={effectiveRow?.report.score ?? row.report.score}
-        verdict={effectiveRow?.report.verdict ?? row.report.verdict}
-        killers={effectiveRow?.report.killers ?? row.report.killers}
-        warns={effectiveRow?.report.warns ?? row.report.warns}
+        score={(effectiveRow ?? row).report.score}
+        verdict={(effectiveRow ?? row).report.verdict}
+        killers={(effectiveRow ?? row).report.killers}
+        warns={(effectiveRow ?? row).report.warns}
       />
       <CarStrip
-        parsed={effectiveRow?.parsed ?? row.parsed}
-        carId={effectiveRow?.carId ?? row.carId}
+        parsed={(effectiveRow ?? row).parsed}
+        carId={(effectiveRow ?? row).carId}
       />
       <SaveButton saved={savedState} onToggle={handleToggleSave} />
       <TabBar tab={tab} onChange={changeTab} />
 
       {tab === 'checklist' && (
         <>
-          <HealthRadar results={effectiveRow?.report.results ?? row.report.results} />
+          <HealthRadar results={(effectiveRow ?? row).report.results} />
           <FilterTabs
             counts={counts}
             active={filter}
@@ -356,9 +369,9 @@ export const App: React.FC = () => {
 
       {tab === 'ai' && (
         <AiEvaluationPanel
-          parsed={effectiveRow?.parsed ?? row.parsed}
-          facts={effectiveRow?.facts ?? row.facts}
-          report={effectiveRow?.report ?? row.report}
+          parsed={row.parsed}
+          facts={row.facts}
+          report={row.report}
         />
       )}
 

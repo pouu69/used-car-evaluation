@@ -1,16 +1,8 @@
-// src/sidepanel/components/SavedList.tsx
 import React, { useCallback, useEffect, useState } from 'react';
 import type { Message } from '@/core/messaging/protocol.js';
-import type { SavedRow } from '@/core/storage/saved.js';
-import type { ChecklistFacts } from '@/core/types/ChecklistFacts.js';
-import type { RuleReport } from '@/core/types/RuleTypes.js';
+import type { EnrichedSavedRow } from '@/core/storage/saved.js';
 import { SavedCard, css as savedCardCss } from './SavedCard.js';
 import type { SavedCardData } from './SavedCard.js';
-
-interface EnrichedSavedRow extends SavedRow {
-  facts: ChecklistFacts;
-  report: RuleReport;
-}
 
 interface SavedListProps {
   onViewCar: (carId: string) => void;
@@ -83,14 +75,14 @@ export const SavedList: React.FC<SavedListProps> = ({ onViewCar, refreshKey }) =
       await chrome.runtime
         .sendMessage<Message>({ type: 'UNSAVE_CAR', carId })
         .catch(() => {});
+      setRows((prev) => prev.filter((r) => r.carId !== carId));
       setSelected((prev) => {
         const next = new Set(prev);
         next.delete(carId);
         return next;
       });
-      void loadList();
     },
-    [loadList],
+    [],
   );
 
   const handleSelect = useCallback((carId: string) => {

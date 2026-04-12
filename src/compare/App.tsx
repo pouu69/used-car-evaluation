@@ -1,25 +1,14 @@
-// src/compare/App.tsx
 import React, { useEffect, useState } from 'react';
 import type { Message } from '@/core/messaging/protocol.js';
-import type { SavedRow } from '@/core/storage/saved.js';
+import type { EnrichedSavedRow, SpecSnapshot } from '@/core/storage/saved.js';
 import type { ChecklistFacts } from '@/core/types/ChecklistFacts.js';
 import type { RuleReport } from '@/core/types/RuleTypes.js';
 import { globalCss } from '@/sidepanel/theme.js';
 import { CompareTable } from './components/CompareTable.js';
 
-export interface CompareCarData {
+export interface CompareCarData extends SpecSnapshot {
   carId: string;
   url: string;
-  title: string;
-  year: number | null;
-  mileageKm: number | null;
-  priceWon: number | null;
-  fuelType: string | null;
-  facts: ChecklistFacts;
-  report: RuleReport;
-}
-
-interface EnrichedSavedRow extends SavedRow {
   facts: ChecklistFacts;
   report: RuleReport;
 }
@@ -40,12 +29,12 @@ export const CompareApp: React.FC = () => {
 
     (async () => {
       try {
-        const resp = (await chrome.runtime.sendMessage<Message>({
-          type: 'GET_SAVED_LIST',
-        })) as EnrichedSavedRow[];
-        const matched = ids
-          .map((id) => resp.find((r) => r.carId === id))
-          .filter((r): r is EnrichedSavedRow => !!r);
+        const results = await Promise.all(
+          ids.map((id) =>
+            chrome.runtime.sendMessage<Message>({ type: 'GET_SAVED_ONE', carId: id }),
+          ),
+        );
+        const matched = results.filter((r): r is EnrichedSavedRow => !!r);
         if (matched.length < 2) {
           setError('저장된 차량을 찾을 수 없습니다. 목록을 확인해 주세요.');
           setLoading(false);

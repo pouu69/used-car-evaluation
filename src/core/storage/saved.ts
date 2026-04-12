@@ -1,7 +1,8 @@
-// src/core/storage/saved.ts
 import type { FieldStatus } from '../types/FieldStatus.js';
 import type { EncarCarBase, EncarParsedData } from '../types/ParsedData.js';
 import { isValue } from '../types/FieldStatus.js';
+import type { ChecklistFacts } from '../types/ChecklistFacts.js';
+import type { RuleReport } from '../types/RuleTypes.js';
 
 export const SAVED_TTL_MS = 15 * 24 * 60 * 60 * 1000;
 
@@ -20,6 +21,11 @@ export interface SavedRow extends SpecSnapshot {
   expiresAt: number;
   updatedAt: number;
   parsed: EncarParsedData;
+}
+
+export interface EnrichedSavedRow extends SavedRow {
+  facts: ChecklistFacts;
+  report: RuleReport;
 }
 
 /** Extract display-friendly spec fields from a FieldStatus<EncarCarBase>. */

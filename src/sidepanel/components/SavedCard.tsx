@@ -1,17 +1,12 @@
-// src/sidepanel/components/SavedCard.tsx
 import React from 'react';
 import type { Verdict } from '@/core/types/RuleTypes.js';
+import type { SpecSnapshot } from '@/core/storage/saved.js';
 import { VERDICT_COLOR } from '@/sidepanel/theme.js';
 import { fmtMileage, fmtPrice } from '@/sidepanel/lib/format.js';
 
-export interface SavedCardData {
+export interface SavedCardData extends SpecSnapshot {
   carId: string;
   url: string;
-  title: string;
-  year: number | null;
-  mileageKm: number | null;
-  priceWon: number | null;
-  fuelType: string | null;
   score: number;
   verdict: Verdict;
   killerCount: number;

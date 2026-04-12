@@ -166,7 +166,7 @@ export const App: React.FC = () => {
     if (!displayedCarId) return;
     chrome.runtime
       .sendMessage<Message>({ type: 'IS_SAVED', carId: displayedCarId })
-      .then((resp: any) => setSavedState(resp?.saved ?? false))
+      .then((resp) => setSavedState((resp as { saved: boolean })?.saved ?? false))
       .catch(() => setSavedState(false));
   }, [displayedCarId]);
 
@@ -220,10 +220,6 @@ export const App: React.FC = () => {
     setViewingSavedCarId(carId);
     setTab('checklist');
   }, [row]);
-
-  const changeTab = useCallback((t: Tab) => {
-    setTab(t);
-  }, []);
 
   // Use savedRow when viewing a saved car, otherwise use live row.
   const effectiveRow = viewingSavedCarId ? savedRow : row;
@@ -280,6 +276,14 @@ export const App: React.FC = () => {
     );
   }
 
+  if (!effectiveRow) {
+    return (
+      <Wrapper>
+        <LoadingView stage={null} carId={viewingSavedCarId ?? undefined} onRefresh={refresh} />
+      </Wrapper>
+    );
+  }
+
   // Cumulative start index so stagger animations continue across groups.
   let cursor = 0;
   const groupsWithIndex = grouped.map(([cat, rules]) => {
@@ -313,25 +317,25 @@ export const App: React.FC = () => {
         </button>
       )}
       <Hero
-        score={(effectiveRow ?? row).report.score}
-        verdict={(effectiveRow ?? row).report.verdict}
-        killers={(effectiveRow ?? row).report.killers}
-        warns={(effectiveRow ?? row).report.warns}
+        score={effectiveRow.report.score}
+        verdict={effectiveRow.report.verdict}
+        killers={effectiveRow.report.killers}
+        warns={effectiveRow.report.warns}
       />
       <CarStrip
-        parsed={(effectiveRow ?? row).parsed}
-        carId={(effectiveRow ?? row).carId}
+        parsed={effectiveRow.parsed}
+        carId={effectiveRow.carId}
       />
       <SaveButton saved={savedState} onToggle={handleToggleSave} />
       <TabBar
         tab={tab}
-        onChange={changeTab}
+        onChange={setTab}
         disabledTabs={viewingSavedCarId ? ['ai'] : []}
       />
 
       {tab === 'checklist' && (
         <>
-          <HealthRadar results={(effectiveRow ?? row).report.results} />
+          <HealthRadar results={effectiveRow.report.results} />
           <FilterTabs
             counts={counts}
             active={filter}
@@ -362,7 +366,7 @@ export const App: React.FC = () => {
               />
             ))
           )}
-          <ActionBar onRefresh={refresh} onGoToAi={() => changeTab('ai')} />
+          <ActionBar onRefresh={refresh} onGoToAi={() => setTab('ai')} />
         </>
       )}
 

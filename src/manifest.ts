@@ -23,7 +23,7 @@ export default defineManifest({
   side_panel: {
     default_path: 'src/sidepanel/index.html',
   },
-  permissions: ['storage', 'sidePanel', 'cookies', 'alarms', 'scripting', 'tabs'],
+  permissions: ['sidePanel', 'alarms', 'scripting', 'tabs'],
   host_permissions: [
     'https://fem.encar.com/*',
     'https://car.encar.com/*',

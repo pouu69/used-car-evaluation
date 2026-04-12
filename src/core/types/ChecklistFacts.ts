@@ -55,4 +55,9 @@ export interface ChecklistFacts {
     newPriceWon: number;
     ratio: number;
   }>;
+  /** R12 — 성능점검 누유 여부 */
+  oilLeak: FieldStatus<{
+    hasLeak: boolean;
+    items: Array<{ part: string; status: string }>;
+  }>;
 }

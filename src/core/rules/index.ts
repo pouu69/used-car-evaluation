@@ -117,21 +117,24 @@ export const r03: Rule = (f) => {
 
 export const r04: Rule = (f) => {
   const s = f.frameDamage;
-  if (!isValue(s)) return unknownResult('R04', '프레임 무사고', s);
-  return !s.value.hasDamage
+  if (!isValue(s)) return unknownResult('R04', '프레임/외판', s);
+  const { hasDamage, parts } = s.value;
+  const hasParts = parts && parts.length > 0;
+  const panelSuffix = hasParts ? ` · 외부패널: ${parts.join(', ')}` : '';
+  return !hasDamage
     ? {
         ruleId: 'R04',
-        title: '프레임 무사고',
+        title: hasParts ? '프레임/외판' : '프레임 무사고',
         severity: 'pass',
-        message: '프레임에 사고 흔적이 없습니다',
+        message: `프레임 무사고${panelSuffix}`,
         evidence: [ev('frameDamage', s.value)],
         acknowledgeable: false,
       }
     : {
         ruleId: 'R04',
-        title: '프레임 무사고',
+        title: '프레임/외판',
         severity: 'killer',
-        message: '🚨 프레임 손상이 확인되었습니다',
+        message: `🚨 프레임 손상${panelSuffix}`,
         evidence: [ev('frameDamage', s.value)],
         acknowledgeable: true,
       };
@@ -377,8 +380,34 @@ export const r11: Rule = (f) => {
   };
 };
 
+export const r12: Rule = (f) => {
+  const s = f.oilLeak;
+  // 성능점검 데이터가 없으면 누유 판정 불가 → 결과에서 제외 (R03과 동일 패턴).
+  if (!isValue(s)) return null;
+  const { hasLeak, items } = s.value;
+  if (!hasLeak) {
+    return {
+      ruleId: 'R12',
+      title: '누유 여부',
+      severity: 'pass',
+      message: '누유 없음',
+      evidence: [ev('oilLeak', s.value)],
+      acknowledgeable: false,
+    };
+  }
+  const detail = items.map((i) => `${i.part}(${i.status})`).join(', ');
+  return {
+    ruleId: 'R12',
+    title: '누유 여부',
+    severity: 'warn',
+    message: `⚠ ${detail}`,
+    evidence: [ev('oilLeak', s.value)],
+    acknowledgeable: false,
+  };
+};
+
 export const ALL_RULES: Rule[] = [
-  r01, r02, r03, r04, r05, r06, r07, r08, r09, r10, r11,
+  r01, r02, r03, r04, r05, r06, r07, r08, r09, r10, r11, r12,
 ];
 
 const SEVERITY_SCORE: Record<Severity, number> = {

@@ -21,7 +21,7 @@ describe('buildVerdictSummary', () => {
   it('uses shortTitle from RULE_META for known ruleIds', () => {
     const killers = [makeResult('R04', 'Frame accident', 'killer')];
     const result = buildVerdictSummary(killers, []);
-    expect(result).toBe('프레임 무사고');
+    expect(result).toBe('프레임/외판');
   });
 
   it('falls back to r.title for unknown ruleIds', () => {
@@ -34,7 +34,7 @@ describe('buildVerdictSummary', () => {
     const killers = [makeResult('R04', 'Frame', 'killer')];
     const warns = [makeResult('R05', 'Rental', 'warn')];
     const result = buildVerdictSummary(killers, warns);
-    expect(result).toBe('프레임 무사고 · 렌트·택시 이력');
+    expect(result).toBe('프레임/외판 · 렌트·택시 이력');
   });
 
   it('caps at 3 entries total (killers first)', () => {
@@ -50,7 +50,7 @@ describe('buildVerdictSummary', () => {
     const parts = result.split(' · ');
     expect(parts.length).toBe(3);
     // First two should be killers
-    expect(parts[0]).toBe('프레임 무사고');
+    expect(parts[0]).toBe('프레임/외판');
     expect(parts[1]).toBe('전손·침수·도난');
     // Third should be first warn
     expect(parts[2]).toBe('렌트·택시 이력');

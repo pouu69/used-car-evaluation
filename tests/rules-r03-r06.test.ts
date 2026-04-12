@@ -29,6 +29,7 @@ const baseFacts = (): ChecklistFacts => ({
   unconfirmedAccident: value(false),
   minorAccidents: value({ ownDamageWon: 0, otherDamageWon: 0, domestic: true }),
   priceVsMarket: value({ priceWon: 30_000_000, newPriceWon: 50_000_000, ratio: 0.6 }),
+  oilLeak: value({ hasLeak: false, items: [] }),
 });
 
 describe('R03 엔카진단', () => {

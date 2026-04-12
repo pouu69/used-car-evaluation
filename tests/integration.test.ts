@@ -14,6 +14,7 @@ import {
   sample004,
   sample006,
   sample007,
+  sampleOilLeak,
   samplePersonalClean,
   sampleIdeal,
 } from '../src/__fixtures__/samples.js';
@@ -129,6 +130,20 @@ describe('integration: parsed → facts → verdict', () => {
     expect(r04?.severity).toBe('unknown');
     const r01 = report.results.find((r) => r.ruleId === 'R01');
     expect(r01?.severity).toBe('pass');
+  });
+
+  it('Sample 008 (쏘나타 누유) → CAUTION via R12 oil leak warn', () => {
+    const facts = encarToFacts(sampleOilLeak);
+    const report = evaluate(facts);
+    expect(report.verdict).toBe('CAUTION');
+    expect(report.killers.length).toBe(0);
+    const r12 = report.results.find((r) => r.ruleId === 'R12');
+    expect(r12?.severity).toBe('warn');
+    expect(r12?.message).toContain('로커암 커버(미세누유)');
+    expect(r12?.message).toContain('오일누유(누유)');
+    // R04 should still PASS (no frame damage).
+    const r04 = report.results.find((r) => r.ruleId === 'R04');
+    expect(r04?.severity).toBe('pass');
   });
 
   it('Sample 007 (BMW F30 렌트) → NEVER (R05, R08) + R04 PASS via inspection', () => {

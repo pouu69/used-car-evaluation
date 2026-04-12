@@ -21,7 +21,11 @@ import type { FieldStatus } from '../types/FieldStatus.js';
 import { failed, isValue, value } from '../types/FieldStatus.js';
 import { getInsuranceGapPeriods } from '../parsers/encar/api-record.js';
 import { getFrameIntact } from '../parsers/encar/api-diagnosis.js';
-import { getFrameFromInspection } from '../parsers/encar/api-inspection.js';
+import {
+  getFrameFromInspection,
+  getOilLeakItems,
+  getOuterPanelParts,
+} from '../parsers/encar/api-inspection.js';
 
 /**
  * True when the listing is posted by an individual (CLIENT) rather than a
@@ -81,6 +85,7 @@ export const encarToFacts = (parsed: EncarParsedData): ChecklistFacts => {
     unconfirmedAccident: failed('not_derived'),
     minorAccidents: failed('not_derived'),
     priceVsMarket: failed('not_derived'),
+    oilLeak: failed('not_derived'),
   };
 
   const personal = isPersonalListing(parsed.raw.base, parsed.raw.detailFlags);
@@ -170,7 +175,11 @@ export const encarToFacts = (parsed: EncarParsedData): ChecklistFacts => {
     if (isValue(ins)) {
       const frame = getFrameFromInspection(ins.value);
       if (frame) {
-        facts.frameDamage = value({ hasDamage: frame.hasDamage });
+        const outerParts = getOuterPanelParts(ins.value);
+        facts.frameDamage = value({
+          hasDamage: frame.hasDamage,
+          parts: outerParts.length > 0 ? outerParts : undefined,
+        });
         warnings.push(
           frame.simpleRepair
             ? 'frameDamage_from_inspection_simpleRepair'
@@ -186,6 +195,16 @@ export const encarToFacts = (parsed: EncarParsedData): ChecklistFacts => {
   ) {
     facts.frameDamage = value({ hasDamage: false });
     warnings.push('frameDamage_from_ribbon');
+  }
+
+  // R12 — oil leak from 성능점검 inners[] tree.
+  const insForLeak = parsed.raw.inspectionApi;
+  if (isValue(insForLeak)) {
+    const leakItems = getOilLeakItems(insForLeak.value);
+    facts.oilLeak = value({
+      hasLeak: leakItems.length > 0,
+      items: leakItems,
+    });
   }
 
   // R11 — neutral newPrice ratio (no external market API yet).

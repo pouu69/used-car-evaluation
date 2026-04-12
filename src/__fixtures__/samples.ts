@@ -410,6 +410,94 @@ export const sample007: EncarParsedData = {
   },
 };
 
+// ── Sample 008: Synthetic — inspection with oil leak (누유) ──────
+// Exercises the R12 oil leak detection path via inners[] tree.
+export const sampleOilLeak: EncarParsedData = {
+  schemaVersion: 1,
+  source: 'encar',
+  url: 'https://fem.encar.com/cars/detail/39351747',
+  carId: '39351747',
+  vehicleId: 39351747,
+  fetchedAt: ts,
+  loginState: 'logged_in',
+  raw: {
+    base: value({
+      category: {
+        manufacturerName: '현대',
+        modelName: '쏘나타',
+        yearMonth: '201901',
+        newPrice: 3200,
+        domestic: true,
+      },
+      advertisement: { price: 1500, preVerified: true, trust: ['Warranty'] },
+      spec: { mileage: 95_000 },
+    }),
+    detailFlags: value({
+      isInsuranceExist: true,
+      isHistoryView: true,
+      isDiagnosisExist: true,
+    }),
+    recordApi: value(emptyRecord()),
+    diagnosisApi: value(intactDiagnosis),
+    inspectionApi: value({
+      vehicleId: 39351747,
+      master: {
+        accdient: false,
+        simpleRepair: false,
+        detail: { waterlog: false, recall: false, tuning: false },
+      },
+      inners: [
+        {
+          type: { code: 'S01', title: '원동기' },
+          statusType: null,
+          statusItemTypes: [],
+          description: null,
+          children: [
+            {
+              type: { code: 's003', title: '로커암 커버' },
+              statusType: { code: '6', title: '미세누유' },
+              statusItemTypes: [
+                { code: '1', title: '양호' },
+                { code: '6', title: '미세누유' },
+                { code: '7', title: '누유' },
+              ],
+              description: null,
+            },
+            {
+              type: { code: 's004', title: '실린더 헤드/가스켓' },
+              statusType: { code: '1', title: '양호' },
+              statusItemTypes: [
+                { code: '1', title: '양호' },
+                { code: '6', title: '미세누유' },
+                { code: '7', title: '누유' },
+              ],
+              description: null,
+            },
+          ],
+        },
+        {
+          type: { code: 'S02', title: '변속기' },
+          statusType: null,
+          statusItemTypes: [],
+          description: null,
+          children: [
+            {
+              type: { code: 's010', title: '오일누유' },
+              statusType: { code: '7', title: '누유' },
+              statusItemTypes: [
+                { code: '1', title: '양호' },
+                { code: '6', title: '미세누유' },
+                { code: '7', title: '누유' },
+              ],
+              description: null,
+            },
+          ],
+        },
+      ],
+    }),
+  },
+};
+
 // ── Synthetic ideal PASS sample ─────────────────────────────────
 export const sampleIdeal: EncarParsedData = {
   schemaVersion: 1,

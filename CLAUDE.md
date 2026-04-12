@@ -85,6 +85,7 @@ docs/architectures/      — Per-topic architecture docs (10 files)
 | R09 | Unconfirmed repair costs | | |
 | R10 | Insurance claim amount | | |
 | R11 | Price reasonableness | | Y (null if no MSRP) |
+| R12 | Oil leak (누유) | | Y (null if no inspection) |
 
 Verdict: killers > 0 → NEVER, warns > 0 → CAUTION, any unknown → UNKNOWN, else → OK.
 

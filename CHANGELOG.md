@@ -10,6 +10,13 @@
 ### Changes
 
 - R04 제목을 "프레임 무사고" → "프레임/외판"으로 변경, 외부패널 수리 내역 표시
+- manifest version `0.3.0` 동기화, description "12 룰" 반영
+
+### Refactoring
+
+- 메시지 핸들러를 `background/handlers.ts`로 분리 — 디스패치 맵 패턴 (SRP)
+- 저장 상태/로직을 `useSavedCars` 훅으로 추출 (SRP)
+- 룰 매직 넘버를 명명 상수로 교체 (Clean Code)
 
 ## [0.2.0] — 2026-04-11
 

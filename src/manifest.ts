@@ -3,8 +3,8 @@ import { defineManifest } from '@crxjs/vite-plugin';
 export default defineManifest({
   manifest_version: 3,
   name: 'AutoVerdict',
-  version: '0.1.0',
-  description: '엔카 매물 자동 평가 — AutoVerdict 11 룰 체크리스트',
+  version: '0.3.0',
+  description: '엔카 매물 자동 평가 — AutoVerdict 12 룰 체크리스트',
   icons: {
     16: 'icons/icon-16.png',
     32: 'icons/icon-32.png',

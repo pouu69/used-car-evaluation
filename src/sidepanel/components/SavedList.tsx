@@ -10,6 +10,7 @@ interface SavedListProps {
 }
 
 const MAX_COMPARE = 4;
+const MAX_SAVED = 10;
 
 export const css: string = `
 ${savedCardCss}
@@ -46,6 +47,18 @@ ${savedCardCss}
 .sl-compare-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+.sl-count {
+  padding: 8px 12px;
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: #666;
+  text-align: right;
+}
+.sl-count--full {
+  color: #FF3B30;
 }
 `;
 
@@ -133,8 +146,13 @@ export const SavedList: React.FC<SavedListProps> = ({ onViewCar, refreshKey }) =
     warnCount: r.report.warns.length,
   }));
 
+  const isFull = rows.length >= MAX_SAVED;
+
   return (
     <div className="sl-root">
+      <div className={`sl-count${isFull ? ' sl-count--full' : ''}`}>
+        {rows.length} / {MAX_SAVED}
+      </div>
       {cards.map((c) => (
         <SavedCard
           key={c.carId}

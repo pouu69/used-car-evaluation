@@ -180,14 +180,15 @@ export const App: React.FC = () => {
       setSavedState(false);
       setSavedListKey((k) => k + 1);
     } else {
-      await chrome.runtime
+      const res = await chrome.runtime
         .sendMessage<Message>({
           type: 'SAVE_CAR',
           carId: target.carId,
           url: target.url,
           parsed: target.parsed,
         })
-        .catch(() => {});
+        .catch(() => ({ ok: false }));
+      if (res?.reason === 'limit') return;
       setSavedState(true);
       setSavedListKey((k) => k + 1);
     }

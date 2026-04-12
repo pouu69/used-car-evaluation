@@ -307,10 +307,18 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
 
   if (isSaveCar(msg)) {
-    const row = buildSavedRow(msg.carId, msg.url, msg.parsed);
-    getDb()
-      .saved.put(row)
-      .then(() => sendResponse({ ok: true }))
+    const db = getDb();
+    db.saved
+      .count()
+      .then((count) => {
+        if (count >= 10) {
+          return sendResponse({ ok: false, reason: 'limit' });
+        }
+        const row = buildSavedRow(msg.carId, msg.url, msg.parsed);
+        return db.saved
+          .put(row)
+          .then(() => sendResponse({ ok: true }));
+      })
       .catch(() => sendResponse({ ok: false }));
     return true;
   }

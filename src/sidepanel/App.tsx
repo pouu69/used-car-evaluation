@@ -150,37 +150,44 @@ export const App: React.FC = () => {
   const [tab, setTab] = useState<Tab>('checklist');
   const [filter, setFilter] = useState<Filter>('all');
   const [savedState, setSavedState] = useState(false);
+  const [savedListKey, setSavedListKey] = useState(0);
   const [viewingSavedCarId, setViewingSavedCarId] = useState<string | null>(null);
   const [savedRow, setSavedRow] = useState<CacheRow | null>(null);
 
-  // Check if current car is saved whenever carId changes.
+  // The car currently being displayed — saved car override or live tab.
+  const displayedCarId = viewingSavedCarId ?? row?.carId ?? null;
+
+  // Check if displayed car is saved whenever it changes.
   useEffect(() => {
-    if (!row?.carId) return;
+    if (!displayedCarId) return;
     chrome.runtime
-      .sendMessage<Message>({ type: 'IS_SAVED', carId: row.carId })
+      .sendMessage<Message>({ type: 'IS_SAVED', carId: displayedCarId })
       .then((resp: any) => setSavedState(resp?.saved ?? false))
       .catch(() => setSavedState(false));
-  }, [row?.carId]);
+  }, [displayedCarId]);
 
   const handleToggleSave = useCallback(async () => {
-    if (!row) return;
+    const target = viewingSavedCarId ? savedRow : row;
+    if (!target) return;
     if (savedState) {
       await chrome.runtime
-        .sendMessage<Message>({ type: 'UNSAVE_CAR', carId: row.carId })
+        .sendMessage<Message>({ type: 'UNSAVE_CAR', carId: target.carId })
         .catch(() => {});
       setSavedState(false);
+      setSavedListKey((k) => k + 1);
     } else {
       await chrome.runtime
         .sendMessage<Message>({
           type: 'SAVE_CAR',
-          carId: row.carId,
-          url: row.url,
-          parsed: row.parsed,
+          carId: target.carId,
+          url: target.url,
+          parsed: target.parsed,
         })
         .catch(() => {});
       setSavedState(true);
+      setSavedListKey((k) => k + 1);
     }
-  }, [row, savedState]);
+  }, [viewingSavedCarId, savedRow, row, savedState]);
 
   const handleViewSavedCar = useCallback(async (carId: string) => {
     const found = (await chrome.runtime.sendMessage<Message>({
@@ -356,7 +363,7 @@ export const App: React.FC = () => {
       )}
 
       {tab === 'mylist' && (
-        <SavedList onViewCar={handleViewSavedCar} />
+        <SavedList onViewCar={handleViewSavedCar} refreshKey={savedListKey} />
       )}
     </Wrapper>
   );

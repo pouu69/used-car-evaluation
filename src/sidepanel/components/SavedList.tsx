@@ -14,6 +14,7 @@ interface EnrichedSavedRow extends SavedRow {
 
 interface SavedListProps {
   onViewCar: (carId: string) => void;
+  refreshKey: number;
 }
 
 const MAX_COMPARE = 4;
@@ -56,7 +57,7 @@ ${savedCardCss}
 }
 `;
 
-export const SavedList: React.FC<SavedListProps> = ({ onViewCar }) => {
+export const SavedList: React.FC<SavedListProps> = ({ onViewCar, refreshKey }) => {
   const [rows, setRows] = useState<EnrichedSavedRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -75,7 +76,7 @@ export const SavedList: React.FC<SavedListProps> = ({ onViewCar }) => {
 
   useEffect(() => {
     void loadList();
-  }, [loadList]);
+  }, [loadList, refreshKey]);
 
   const handleDelete = useCallback(
     async (carId: string) => {

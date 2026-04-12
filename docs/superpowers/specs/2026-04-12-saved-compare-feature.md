@@ -25,30 +25,44 @@ interface SavedRow {
   expiresAt: number;           // savedAt + 15 days
   updatedAt: number;           // last update timestamp
 
-  // Spec snapshot (for card/table display)
-  title: string;               // car name
-  year: number | null;         // model year
-  mileageKm: number | null;    // mileage in km
-  priceWon: number | null;     // price in KRW
-  fuelType: string | null;     // fuel type
+  // Spec snapshot — extracted from parsed.raw.base (FieldStatus<EncarCarBase>).
+  // Extraction uses isValue() guard; fields are null when base is not 'value' kind.
+  title: string;               // car name (from category.modelName + gradeName)
+  year: number | null;         // from category.formYear or yearMonth
+  mileageKm: number | null;    // from spec.mileage
+  priceWon: number | null;     // from advertisement.price
+  fuelType: string | null;     // from spec.fuelName
 
-  // Evaluation snapshot
-  parsed: EncarParsedData;     // full parsed data
-  score: number;               // evaluation score (0–100)
-  verdict: Verdict;            // OK / CAUTION / NEVER / UNKNOWN
-  killerCount: number;         // number of killer-severity results
-  warnCount: number;           // number of warn-severity results
+  // Full parsed data — the single source of truth.
+  // facts + report are NEVER stored; always recomputed via
+  // encarToFacts(parsed) + evaluate(facts) on read.
+  parsed: EncarParsedData;
 }
 ```
 
 **Index:** `carId` (primary), `savedAt`, `expiresAt`.
 
+> **Note:** `score`, `verdict`, `killerCount`, `warnCount` are not stored — they are derived from `parsed` at read time via bridge+rules recomputation. This avoids stale snapshots diverging from the latest rule logic.
+
 ### Key behaviors
 
-- **Save:** Build `SavedRow` from current `parsed` + bridge+rules recomputation. Set `expiresAt = now + 15 days`.
-- **Revisit update:** When `COLLECT_RESULT` fires and the `carId` exists in `saved`, overwrite the snapshot with fresh data and reset `expiresAt` to `now + 15 days`.
-- **Comparison read:** Always recompute `facts` + `report` from stored `parsed` (same invariant as cache — latest rule logic always applies).
+- **Save:** Extract spec fields from `parsed.raw.base` using `isValue()` guard (null when FieldStatus kind is not `'value'`). Set `expiresAt = now + 15 days`.
+- **Revisit update:** When `COLLECT_RESULT` fires and the `carId` exists in `saved`, overwrite `parsed` + spec snapshot with fresh data and reset `expiresAt` to `now + 15 days`.
+- **Read (list/compare):** Always recompute `facts` + `report` from stored `parsed` via `encarToFacts()` + `evaluate()` (same invariant as cache — latest rule logic always applies). Derived values (`score`, `verdict`, `killerCount`, `warnCount`) are computed per read, never stored.
 - **Expiry sweep:** Extend existing `sweep-expired` alarm to also delete `saved` rows where `expiresAt < now`.
+
+### Dexie Migration (v1 → v2)
+
+Current schema is version 1. Bump to version 2 with the new `saved` columns. Existing `saved` rows (if any) lack `parsed`, `expiresAt`, etc. — Dexie's `upgrade()` callback deletes all existing `saved` rows since they cannot be backfilled. This is safe: the feature is new and no users have meaningful saved data yet.
+
+```typescript
+this.version(2).stores({
+  cache: 'carId, cachedAt, expiresAt',
+  acks: '[carId+ruleId], expiresAt',
+  saved: 'carId, savedAt, expiresAt',  // added expiresAt index
+  settings: 'key',
+}).upgrade(tx => tx.table('saved').clear());
+```
 
 ### TTL
 
@@ -68,11 +82,11 @@ interface SavedRow {
 
 ### Background handler changes
 
-- `SAVE_CAR`: Extract specs from `parsed`, compute score/verdict, put into `saved` table.
+- `SAVE_CAR`: Extract spec fields from `parsed.raw.base` via `isValue()` guard, build `SavedRow`, put into `saved` table.
 - `UNSAVE_CAR`: Delete by `carId`.
-- `GET_SAVED_LIST`: Read all non-expired rows, recompute `facts` + `report` from `parsed` for each, return array.
+- `GET_SAVED_LIST`: Read all non-expired rows. For each row, recompute `facts` via `encarToFacts(row.parsed)` and `report` via `evaluate(facts)`. Return enriched array. Performance note: O(N) rule evaluations per call — acceptable for ≤15 saved cars; no debounce needed at this scale.
 - `IS_SAVED`: Check existence by `carId`, return boolean.
-- **Existing `COLLECT_RESULT` broadcast handler**: After caching, check if `carId` exists in `saved` → if so, update snapshot + reset `expiresAt`.
+- **Existing `COLLECT_RESULT` broadcast handler**: After caching, check if `carId` exists in `saved` → if so, update `parsed` + spec snapshot + reset `expiresAt`.
 
 ## Side Panel UI
 
@@ -105,7 +119,7 @@ Each saved car renders as a card:
 └─────────────────────────────────┘
 ```
 
-- **Card click** → Switch to Checklist tab and load that car's evaluation from saved `parsed` data.
+- **Card click** → Switch to Checklist tab and load that car's evaluation from saved `parsed` data. This overrides the active-tab-based data: App holds a `viewingSavedCarId` state that, when set, makes `useCarData` return the saved row's recomputed data instead of the live tab's data. A "back to live" button clears this override.
 - **Checkbox click** → Toggle selection for comparison.
 - **Delete button** → Send `UNSAVE_CAR`, remove from list.
 
@@ -123,8 +137,11 @@ Each saved car renders as a card:
 
 ### Setup
 
-- Separate entry point: `src/compare/main.tsx` + `compare.html` in extension manifest `chrome_url_overrides` or as a regular extension page.
+- Separate entry point: `src/compare/main.tsx` + `compare.html` registered as a regular extension page (NOT `chrome_url_overrides` — that is only for newtab/history/bookmarks).
+- Vite config (`vite.config.ts`) needs a new HTML entry point for `compare.html` so `@crxjs/vite-plugin` bundles it.
+- Opened via `chrome.runtime.getURL('compare.html?ids=...')` in a new tab.
 - React 18, shares existing theme (`theme.ts`), brutalist style.
+- The compare page is an extension page context — `chrome.runtime.sendMessage` works the same as in the sidepanel.
 - On load: parse `ids` from URL query → send `GET_SAVED_LIST` → filter by ids → recompute facts+report → render.
 
 ### Layout — Horizontal table
@@ -189,9 +206,10 @@ Rows = items, Columns = cars (max 4).
 - `src/core/messaging/protocol.ts` — Add 4 new message types + type guards
 - `src/background/index.ts` — Handle new messages + revisit-update logic
 - `src/sidepanel/App.tsx` — Add "My List" tab, wire save state
-- `src/sidepanel/components/TabBar.tsx` — Add third tab
+- `src/sidepanel/components/TabBar.tsx` — Add `'mylist'` to `Tab` union, third entry in `TABS` array, update `grid-template-columns: 1fr 1fr` → `1fr 1fr 1fr`
 - `src/sidepanel/components/ActionBar.tsx` — Add save button
 - `src/manifest.ts` — Register `compare.html` as extension page
+- `vite.config.ts` — Add `compare.html` as additional HTML entry point for `@crxjs/vite-plugin`
 
 ## Out of Scope
 

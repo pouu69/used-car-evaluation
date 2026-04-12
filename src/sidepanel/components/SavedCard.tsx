@@ -107,7 +107,9 @@ export const css: string = `
   padding: 4px 8px;
   border: 2px solid #000;
   background: #fff;
+  color: #000;
   cursor: pointer;
+  text-decoration: none;
 }
 .sc-action-btn:hover {
   background: #000;
@@ -181,7 +183,6 @@ export const SavedCard: React.FC<SavedCardProps> = ({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          style={{ textDecoration: 'none', color: 'inherit' }}
         >
           엔카 →
         </a>

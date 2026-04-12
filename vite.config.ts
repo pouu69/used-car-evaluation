@@ -15,6 +15,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         sidepanel: 'src/sidepanel/index.html',
+        compare: 'src/compare/compare.html',
       },
     },
   },

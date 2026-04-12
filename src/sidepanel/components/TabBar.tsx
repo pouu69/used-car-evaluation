@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type Tab = 'checklist' | 'ai';
+export type Tab = 'checklist' | 'ai' | 'mylist';
 
 interface TabBarProps {
   tab: Tab;
@@ -10,12 +10,13 @@ interface TabBarProps {
 const TABS: Array<{ id: Tab; label: string; sub: string }> = [
   { id: 'checklist', label: 'CHECKLIST', sub: '◼ 11 RULES' },
   { id: 'ai', label: 'AI REVIEW', sub: '◇ GEMINI / GPT' },
+  { id: 'mylist', label: 'MY LIST', sub: '★ SAVED CARS' },
 ];
 
 export const css: string = `
 .tab-bar {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   border-bottom: 4px solid #000;
 }
 .tab-bar-btn {

@@ -1,11 +1,13 @@
 /**
  * IndexedDB schema via Dexie.
- * 4 tables — cache(24h), acks(7d), saved(infinite), settings(infinite).
+ * 4 tables — cache(24h), acks(7d), saved(15d), settings(infinite).
  */
 import Dexie, { type Table } from 'dexie';
 import type { EncarParsedData } from '../types/ParsedData.js';
 import type { ChecklistFacts } from '../types/ChecklistFacts.js';
 import type { RuleReport } from '../types/RuleTypes.js';
+export type { SavedRow } from './saved.js';
+import type { SavedRow } from './saved.js';
 
 export interface CacheRow {
   carId: string;
@@ -22,13 +24,6 @@ export interface AckRow {
   ruleId: string;
   ackedAt: number;
   expiresAt: number;
-}
-
-export interface SavedRow {
-  carId: string;
-  url: string;
-  title: string;
-  savedAt: number;
 }
 
 export interface SettingRow {
@@ -50,6 +45,12 @@ export class AutoVerdictDB extends Dexie {
       saved: 'carId, savedAt',
       settings: 'key',
     });
+    this.version(2).stores({
+      cache: 'carId, cachedAt, expiresAt',
+      acks: '[carId+ruleId], expiresAt',
+      saved: 'carId, savedAt, expiresAt',
+      settings: 'key',
+    }).upgrade(tx => tx.table('saved').clear());
   }
 }
 
@@ -66,4 +67,5 @@ export const sweepExpired = async (now: number = Date.now()): Promise<void> => {
   const db = getDb();
   await db.cache.where('expiresAt').below(now).delete();
   await db.acks.where('expiresAt').below(now).delete();
+  await db.saved.where('expiresAt').below(now).delete();
 };

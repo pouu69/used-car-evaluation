@@ -1,9 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RuleResult } from '@/core/types/RuleTypes.js';
 import { CATEGORY_ORDER, RULE_META, type Category } from './rule-meta.js';
 import { AiEvaluationPanel, css as aiPanelCss } from './AiEvaluationPanel.js';
 import { globalCss } from './theme.js';
 import { useCarData, isEncarDetail } from './hooks/useCarData.js';
+import type { CacheRow } from '@/core/storage/db.js';
+import type { Message } from '@/core/messaging/protocol.js';
+import type { SavedRow } from '@/core/storage/saved.js';
+import type { ChecklistFacts } from '@/core/types/ChecklistFacts.js';
+import type { RuleReport } from '@/core/types/RuleTypes.js';
 
 import {
   Hero,
@@ -48,14 +53,17 @@ import {
   ErrorView,
   css as errorCss,
 } from './components/ErrorView.js';
+import { SavedList, css as savedListCss } from './components/SavedList.js';
 
 /**
  * Brutalist Scoreboard shell.
  *
  * Owns:
  *  - data loading via useCarData
- *  - tab ('checklist' | 'ai')
+ *  - tab ('checklist' | 'ai' | 'mylist')
  *  - filter ('all' | 'fatal' | 'warn' | 'pass' | 'na')
+ *  - savedState (is current car saved)
+ *  - viewingSavedCarId (non-null when browsing a saved car in checklist view)
  *
  * Everything else is delegated to focused components. Each component
  * exports its own `css` string; we concatenate them here into a single
@@ -75,7 +83,8 @@ const SHEET =
   loadingCss +
   emptyCss +
   errorCss +
-  aiPanelCss;
+  aiPanelCss +
+  savedListCss;
 
 interface Counts {
   total: number;
@@ -138,21 +147,87 @@ export const App: React.FC = () => {
     useCarData();
   const [tab, setTab] = useState<Tab>('checklist');
   const [filter, setFilter] = useState<Filter>('all');
+  const [savedState, setSavedState] = useState(false);
+  const [viewingSavedCarId, setViewingSavedCarId] = useState<string | null>(null);
+  const [savedRow, setSavedRow] = useState<CacheRow | null>(null);
+
+  // Check if current car is saved whenever carId changes.
+  useEffect(() => {
+    if (!row?.carId) return;
+    chrome.runtime
+      .sendMessage<Message>({ type: 'IS_SAVED', carId: row.carId })
+      .then((resp: any) => setSavedState(resp?.saved ?? false))
+      .catch(() => setSavedState(false));
+  }, [row?.carId]);
+
+  const handleToggleSave = useCallback(async () => {
+    if (!row) return;
+    if (savedState) {
+      await chrome.runtime
+        .sendMessage<Message>({ type: 'UNSAVE_CAR', carId: row.carId })
+        .catch(() => {});
+      setSavedState(false);
+    } else {
+      await chrome.runtime
+        .sendMessage<Message>({
+          type: 'SAVE_CAR',
+          carId: row.carId,
+          url: row.url,
+          parsed: row.parsed,
+        })
+        .catch(() => {});
+      setSavedState(true);
+    }
+  }, [row, savedState]);
+
+  const handleViewSavedCar = useCallback(async (carId: string) => {
+    const resp = (await chrome.runtime.sendMessage<Message>({
+      type: 'GET_SAVED_LIST',
+    })) as Array<SavedRow & { facts: ChecklistFacts; report: RuleReport }>;
+    const found = resp?.find((r) => r.carId === carId);
+    if (!found) return;
+    setSavedRow({
+      carId: found.carId,
+      url: found.url,
+      parsed: found.parsed,
+      facts: found.facts,
+      report: found.report,
+      cachedAt: found.updatedAt,
+      expiresAt: found.expiresAt,
+    });
+    setViewingSavedCarId(carId);
+    setTab('checklist');
+  }, []);
+
+  // Clears viewingSavedCarId when switching away from checklist.
+  const changeTab = useCallback((t: Tab) => {
+    setTab(t);
+    if (t !== 'checklist') {
+      setViewingSavedCarId(null);
+      setSavedRow(null);
+    }
+  }, []);
+
+  // Use savedRow when viewing a saved car, otherwise use live row.
+  const effectiveRow = viewingSavedCarId ? savedRow : row;
 
   const counts = useMemo<Counts>(
-    () => (row ? computeCounts(row.report.results) : {
-      total: 0,
-      killers: 0,
-      warns: 0,
-      passes: 0,
-      unknowns: 0,
-    }),
-    [row],
+    () =>
+      effectiveRow
+        ? computeCounts(effectiveRow.report.results)
+        : {
+            total: 0,
+            killers: 0,
+            warns: 0,
+            passes: 0,
+            unknowns: 0,
+          },
+    [effectiveRow],
   );
 
   const filtered = useMemo(
-    () => (row ? applyFilter(row.report.results, filter) : []),
-    [row, filter],
+    () => (effectiveRow ? applyFilter(effectiveRow.report.results, filter) : []),
+    [effectiveRow, filter],
   );
 
   const grouped = useMemo(() => groupByCategory(filtered), [filtered]);
@@ -198,18 +273,43 @@ export const App: React.FC = () => {
 
   return (
     <Wrapper>
-      <Hero
-        score={row.report.score}
-        verdict={row.report.verdict}
-        killers={row.report.killers}
-        warns={row.report.warns}
-      />
-      <CarStrip parsed={row.parsed} carId={row.carId} />
-      <TabBar tab={tab} onChange={setTab} />
+      <TabBar tab={tab} onChange={changeTab} />
 
       {tab === 'checklist' && (
         <>
-          <HealthRadar results={row.report.results} />
+          {viewingSavedCarId && (
+            <button
+              style={{
+                width: '100%',
+                padding: '10px',
+                fontFamily: "'Space Mono', monospace",
+                fontSize: '10px',
+                letterSpacing: '1.5px',
+                textTransform: 'uppercase' as const,
+                background: '#CCFF00',
+                border: 'none',
+                borderBottom: '3px solid #000',
+                cursor: 'pointer',
+              }}
+              onClick={() => {
+                setViewingSavedCarId(null);
+                setSavedRow(null);
+              }}
+            >
+              ← BACK TO LIVE TAB
+            </button>
+          )}
+          <Hero
+            score={effectiveRow?.report.score ?? row.report.score}
+            verdict={effectiveRow?.report.verdict ?? row.report.verdict}
+            killers={effectiveRow?.report.killers ?? row.report.killers}
+            warns={effectiveRow?.report.warns ?? row.report.warns}
+          />
+          <CarStrip
+            parsed={effectiveRow?.parsed ?? row.parsed}
+            carId={effectiveRow?.carId ?? row.carId}
+          />
+          <HealthRadar results={effectiveRow?.report.results ?? row.report.results} />
           <FilterTabs
             counts={counts}
             active={filter}
@@ -240,16 +340,25 @@ export const App: React.FC = () => {
               />
             ))
           )}
-          <ActionBar onRefresh={refresh} onGoToAi={() => setTab('ai')} />
+          <ActionBar
+            onRefresh={refresh}
+            onGoToAi={() => changeTab('ai')}
+            saved={savedState}
+            onToggleSave={handleToggleSave}
+          />
         </>
       )}
 
       {tab === 'ai' && (
         <AiEvaluationPanel
-          parsed={row.parsed}
-          facts={row.facts}
-          report={row.report}
+          parsed={effectiveRow?.parsed ?? row.parsed}
+          facts={effectiveRow?.facts ?? row.facts}
+          report={effectiveRow?.report ?? row.report}
         />
+      )}
+
+      {tab === 'mylist' && (
+        <SavedList onViewCar={handleViewSavedCar} />
       )}
     </Wrapper>
   );

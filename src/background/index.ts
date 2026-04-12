@@ -16,8 +16,13 @@ import {
   isGetLast,
   isMessage,
   isRefresh,
+  isSaveCar,
+  isUnsaveCar,
+  isGetSavedList,
+  isIsSaved,
   type Message,
 } from '@/core/messaging/protocol';
+import { buildSavedRow, SAVED_TTL_MS, extractSpecs } from '@/core/storage/saved';
 import {
   mainWorldCollect,
   type MainWorldPayload,
@@ -192,6 +197,16 @@ const collectFor = async (
     expiresAt: now + CACHE_TTL_MS,
   });
 
+  const existingSaved = await db.saved.get(carId);
+  if (existingSaved && existingSaved.expiresAt > now) {
+    await db.saved.update(carId, {
+      ...extractSpecs(parsed.raw.base),
+      parsed,
+      updatedAt: now,
+      expiresAt: now + SAVED_TTL_MS,
+    });
+  }
+
   return { type: 'COLLECT_RESULT', carId, parsed, facts, report };
 };
 
@@ -287,6 +302,49 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       })
       .then(() => sendResponse({ ok: true }))
       .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (isSaveCar(msg)) {
+    const row = buildSavedRow(msg.carId, msg.url, msg.parsed);
+    getDb()
+      .saved.put(row)
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (isUnsaveCar(msg)) {
+    getDb()
+      .saved.delete(msg.carId)
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+
+  if (isGetSavedList(msg)) {
+    (async () => {
+      const db = getDb();
+      const now = Date.now();
+      const rows = await db.saved.where('expiresAt').above(now).toArray();
+      rows.sort((a, b) => b.savedAt - a.savedAt);
+      const enriched = rows.map((row) => {
+        const facts = encarToFacts(row.parsed);
+        const report = evaluate(facts);
+        return { ...row, facts, report };
+      });
+      sendResponse(enriched);
+    })();
+    return true;
+  }
+
+  if (isIsSaved(msg)) {
+    (async () => {
+      const db = getDb();
+      const now = Date.now();
+      const row = await db.saved.get(msg.carId);
+      sendResponse({ saved: !!(row && row.expiresAt > now) });
+    })();
     return true;
   }
 

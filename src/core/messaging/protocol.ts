@@ -53,7 +53,11 @@ export type Message =
   | { type: 'COLLECT_ERROR'; carId: string; reason: string }
   | { type: 'ACK_RULE'; carId: string; ruleId: string }
   | { type: 'REFRESH'; carId: string }
-  | { type: 'GET_LAST'; carId?: string };
+  | { type: 'GET_LAST'; carId?: string }
+  | { type: 'SAVE_CAR'; carId: string; url: string; parsed: EncarParsedData }
+  | { type: 'UNSAVE_CAR'; carId: string }
+  | { type: 'GET_SAVED_LIST' }
+  | { type: 'IS_SAVED'; carId: string };
 
 export const isMessage = (v: unknown): v is Message =>
   typeof v === 'object' &&
@@ -100,3 +104,23 @@ export const isGetLast = (
   v: unknown,
 ): v is Extract<Message, { type: 'GET_LAST' }> =>
   isMessage(v) && v.type === 'GET_LAST';
+
+export const isSaveCar = (
+  v: unknown,
+): v is Extract<Message, { type: 'SAVE_CAR' }> =>
+  isMessage(v) && v.type === 'SAVE_CAR';
+
+export const isUnsaveCar = (
+  v: unknown,
+): v is Extract<Message, { type: 'UNSAVE_CAR' }> =>
+  isMessage(v) && v.type === 'UNSAVE_CAR';
+
+export const isGetSavedList = (
+  v: unknown,
+): v is Extract<Message, { type: 'GET_SAVED_LIST' }> =>
+  isMessage(v) && v.type === 'GET_SAVED_LIST';
+
+export const isIsSaved = (
+  v: unknown,
+): v is Extract<Message, { type: 'IS_SAVED' }> =>
+  isMessage(v) && v.type === 'IS_SAVED';

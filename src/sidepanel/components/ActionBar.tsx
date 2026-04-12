@@ -3,14 +3,12 @@ import React from 'react';
 interface ActionBarProps {
   onRefresh: () => void;
   onGoToAi: () => void;
-  saved: boolean;
-  onToggleSave: () => void;
 }
 
 export const css: string = `
 .ab-root {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   border-top: 4px double #000;
 }
 
@@ -31,39 +29,16 @@ export const css: string = `
   border-right: 2px solid #000;
 }
 
-.ab-btn--save {
-  background: #fff;
-  color: #000;
-  border-right: 2px solid #000;
-}
-
-.ab-btn--save[data-saved='true'] {
-  background: #CCFF00;
-  color: #000;
-}
-
 .ab-btn--ai {
   background: #000;
   color: #fff;
 }
 `;
 
-export const ActionBar: React.FC<ActionBarProps> = ({
-  onRefresh,
-  onGoToAi,
-  saved,
-  onToggleSave,
-}) => (
+export const ActionBar: React.FC<ActionBarProps> = ({ onRefresh, onGoToAi }) => (
   <div className="ab-root">
     <button className="ab-btn ab-btn--refresh" onClick={onRefresh}>
       ↻ 재평가
-    </button>
-    <button
-      className="ab-btn ab-btn--save"
-      data-saved={saved}
-      onClick={onToggleSave}
-    >
-      {saved ? '★ SAVED' : '☆ SAVE'}
     </button>
     <button className="ab-btn ab-btn--ai" onClick={onGoToAi}>
       AI 평가 →

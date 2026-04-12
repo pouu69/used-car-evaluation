@@ -19,6 +19,7 @@ import {
   isSaveCar,
   isUnsaveCar,
   isGetSavedList,
+  isGetSavedOne,
   isIsSaved,
   type Message,
 } from '@/core/messaging/protocol';
@@ -334,6 +335,21 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         return { ...row, facts, report };
       });
       sendResponse(enriched);
+    })();
+    return true;
+  }
+
+  if (isGetSavedOne(msg)) {
+    (async () => {
+      const db = getDb();
+      const row = await db.saved.get(msg.carId);
+      if (!row || row.expiresAt <= Date.now()) {
+        sendResponse(null);
+        return;
+      }
+      const facts = encarToFacts(row.parsed);
+      const report = evaluate(facts);
+      sendResponse({ ...row, facts, report });
     })();
     return true;
   }

@@ -41,6 +41,7 @@ import {
   ActionBar,
   css as actionBarCss,
 } from './components/ActionBar.js';
+import { SaveButton, css as saveButtonCss } from './components/SaveButton.js';
 import {
   LoadingView,
   css as loadingCss,
@@ -74,6 +75,7 @@ const SHEET =
   globalCss +
   heroCss +
   carStripCss +
+  saveButtonCss +
   tabBarCss +
   healthRadarCss +
   filterTabsCss +
@@ -181,10 +183,10 @@ export const App: React.FC = () => {
   }, [row, savedState]);
 
   const handleViewSavedCar = useCallback(async (carId: string) => {
-    const resp = (await chrome.runtime.sendMessage<Message>({
-      type: 'GET_SAVED_LIST',
-    })) as Array<SavedRow & { facts: ChecklistFacts; report: RuleReport }>;
-    const found = resp?.find((r) => r.carId === carId);
+    const found = (await chrome.runtime.sendMessage<Message>({
+      type: 'GET_SAVED_ONE',
+      carId,
+    })) as (SavedRow & { facts: ChecklistFacts; report: RuleReport }) | null;
     if (!found) return;
     setSavedRow({
       carId: found.carId,
@@ -273,42 +275,43 @@ export const App: React.FC = () => {
 
   return (
     <Wrapper>
+      {viewingSavedCarId && (
+        <button
+          style={{
+            width: '100%',
+            padding: '10px',
+            fontFamily: "'Space Mono', monospace",
+            fontSize: '10px',
+            letterSpacing: '1.5px',
+            textTransform: 'uppercase' as const,
+            background: '#CCFF00',
+            border: 'none',
+            borderBottom: '3px solid #000',
+            cursor: 'pointer',
+          }}
+          onClick={() => {
+            setViewingSavedCarId(null);
+            setSavedRow(null);
+          }}
+        >
+          ← BACK TO LIVE TAB
+        </button>
+      )}
+      <Hero
+        score={effectiveRow?.report.score ?? row.report.score}
+        verdict={effectiveRow?.report.verdict ?? row.report.verdict}
+        killers={effectiveRow?.report.killers ?? row.report.killers}
+        warns={effectiveRow?.report.warns ?? row.report.warns}
+      />
+      <CarStrip
+        parsed={effectiveRow?.parsed ?? row.parsed}
+        carId={effectiveRow?.carId ?? row.carId}
+      />
+      <SaveButton saved={savedState} onToggle={handleToggleSave} />
       <TabBar tab={tab} onChange={changeTab} />
 
       {tab === 'checklist' && (
         <>
-          {viewingSavedCarId && (
-            <button
-              style={{
-                width: '100%',
-                padding: '10px',
-                fontFamily: "'Space Mono', monospace",
-                fontSize: '10px',
-                letterSpacing: '1.5px',
-                textTransform: 'uppercase' as const,
-                background: '#CCFF00',
-                border: 'none',
-                borderBottom: '3px solid #000',
-                cursor: 'pointer',
-              }}
-              onClick={() => {
-                setViewingSavedCarId(null);
-                setSavedRow(null);
-              }}
-            >
-              ← BACK TO LIVE TAB
-            </button>
-          )}
-          <Hero
-            score={effectiveRow?.report.score ?? row.report.score}
-            verdict={effectiveRow?.report.verdict ?? row.report.verdict}
-            killers={effectiveRow?.report.killers ?? row.report.killers}
-            warns={effectiveRow?.report.warns ?? row.report.warns}
-          />
-          <CarStrip
-            parsed={effectiveRow?.parsed ?? row.parsed}
-            carId={effectiveRow?.carId ?? row.carId}
-          />
           <HealthRadar results={effectiveRow?.report.results ?? row.report.results} />
           <FilterTabs
             counts={counts}
@@ -340,12 +343,7 @@ export const App: React.FC = () => {
               />
             ))
           )}
-          <ActionBar
-            onRefresh={refresh}
-            onGoToAi={() => changeTab('ai')}
-            saved={savedState}
-            onToggleSave={handleToggleSave}
-          />
+          <ActionBar onRefresh={refresh} onGoToAi={() => changeTab('ai')} />
         </>
       )}
 

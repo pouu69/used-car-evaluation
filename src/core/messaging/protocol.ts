@@ -57,6 +57,7 @@ export type Message =
   | { type: 'SAVE_CAR'; carId: string; url: string; parsed: EncarParsedData }
   | { type: 'UNSAVE_CAR'; carId: string }
   | { type: 'GET_SAVED_LIST' }
+  | { type: 'GET_SAVED_ONE'; carId: string }
   | { type: 'IS_SAVED'; carId: string };
 
 export const isMessage = (v: unknown): v is Message =>
@@ -119,6 +120,11 @@ export const isGetSavedList = (
   v: unknown,
 ): v is Extract<Message, { type: 'GET_SAVED_LIST' }> =>
   isMessage(v) && v.type === 'GET_SAVED_LIST';
+
+export const isGetSavedOne = (
+  v: unknown,
+): v is Extract<Message, { type: 'GET_SAVED_ONE' }> =>
+  isMessage(v) && v.type === 'GET_SAVED_ONE';
 
 export const isIsSaved = (
   v: unknown,

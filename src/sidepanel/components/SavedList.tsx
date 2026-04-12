@@ -128,6 +128,7 @@ export const SavedList: React.FC<SavedListProps> = ({ onViewCar }) => {
 
   const cards: SavedCardData[] = rows.map((r) => ({
     carId: r.carId,
+    url: r.url,
     title: r.title,
     year: r.year,
     mileageKm: r.mileageKm,

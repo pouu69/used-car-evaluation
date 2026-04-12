@@ -1,9 +1,12 @@
 // src/sidepanel/components/SavedCard.tsx
 import React from 'react';
 import type { Verdict } from '@/core/types/RuleTypes.js';
+import { VERDICT_COLOR } from '@/sidepanel/theme.js';
+import { fmtMileage, fmtPrice } from '@/sidepanel/lib/format.js';
 
 export interface SavedCardData {
   carId: string;
+  url: string;
   title: string;
   year: number | null;
   mileageKm: number | null;
@@ -23,18 +26,6 @@ interface SavedCardProps {
   onDelete: (carId: string) => void;
 }
 
-const VERDICT_COLOR: Record<Verdict, string> = {
-  OK: '#00C853',
-  CAUTION: '#FFD600',
-  NEVER: '#FF1744',
-  UNKNOWN: '#9E9E9E',
-};
-
-const fmtMileage = (km: number | null): string =>
-  km === null ? '—' : km >= 10000 ? `${(km / 10000).toFixed(1)}만km` : `${km.toLocaleString()}km`;
-
-const fmtPrice = (won: number | null): string =>
-  won === null ? '—' : `${won.toLocaleString()}만원`;
 
 export const css: string = `
 .sc-root {
@@ -184,6 +175,16 @@ export const SavedCard: React.FC<SavedCardProps> = ({
         <span>K:{data.killerCount} W:{data.warnCount}</span>
       </div>
       <div className="sc-actions">
+        <a
+          className="sc-action-btn"
+          href={data.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          style={{ textDecoration: 'none', color: 'inherit' }}
+        >
+          엔카 →
+        </a>
         <button
           className="sc-action-btn"
           onClick={(e) => { e.stopPropagation(); onDelete(data.carId); }}

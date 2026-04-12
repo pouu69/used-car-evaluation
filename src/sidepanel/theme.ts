@@ -2,6 +2,14 @@
  * Brutalist Scoreboard theme — colors, fonts, keyframes.
  * Consumed by every component via a shared <style> injection in App.tsx.
  */
+import type { Verdict } from '@/core/types/RuleTypes.js';
+
+export const VERDICT_COLOR: Record<Verdict, string> = {
+  OK: '#00C853',
+  CAUTION: '#FFD600',
+  NEVER: '#FF1744',
+  UNKNOWN: '#9E9E9E',
+};
 
 export const COLORS = {
   black: '#000000',

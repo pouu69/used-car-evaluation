@@ -1023,8 +1023,8 @@ Add to `App.tsx`:
 import { SavedList, css as savedListCss } from './components/SavedList.js';
 import type { Message } from '@/core/messaging/protocol.js';
 import type { SavedRow } from '@/core/storage/saved.js';
-import { encarToFacts } from '@/core/bridge/encar-to-facts.js';
-import { evaluate } from '@/core/rules/index.js';
+import type { ChecklistFacts } from '@/core/types/ChecklistFacts.js';
+import type { RuleReport } from '@/core/types/RuleTypes.js';
 ```
 
 Add `savedListCss` to the `SHEET` concatenation.
@@ -1075,23 +1075,23 @@ const handleToggleSave = useCallback(async () => {
 }, [row, savedState]);
 ```
 
-Add view-saved-car handler:
+Add view-saved-car handler (uses already-enriched data from GET_SAVED_LIST — no double recomputation):
 
 ```typescript
 const handleViewSavedCar = useCallback(async (carId: string) => {
   const resp = (await chrome.runtime.sendMessage<Message>({
     type: 'GET_SAVED_LIST',
-  })) as Array<SavedRow & { facts: any; report: any }>;
+  })) as Array<SavedRow & { facts: ChecklistFacts; report: RuleReport }>;
   const found = resp?.find((r) => r.carId === carId);
   if (!found) return;
-  const facts = encarToFacts(found.parsed);
-  const report = evaluate(facts);
+  // Background already recomputed facts+report in GET_SAVED_LIST handler.
+  // Reuse directly — no need to call encarToFacts/evaluate again.
   setSavedRow({
     carId: found.carId,
     url: found.url,
     parsed: found.parsed,
-    facts,
-    report,
+    facts: found.facts,
+    report: found.report,
     cachedAt: found.updatedAt,
     expiresAt: found.expiresAt,
   });
@@ -1306,10 +1306,9 @@ interface EnrichedSavedRow extends SavedRow {
   report: RuleReport;
 }
 
-const globalCss = `
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  @import url('https://fonts.googleapis.com/css2?family=Archivo+Black&family=Inter+Tight:wght@400;600;700&family=Space+Mono:wght@400;700&display=swap');
-`;
+// Reuse the existing globalCss from sidepanel theme — it includes
+// Google Fonts @import and base resets. Same pattern as sidepanel.
+import { globalCss } from '@/sidepanel/theme.js';
 
 export const CompareApp: React.FC = () => {
   const [cars, setCars] = useState<CompareCarData[]>([]);

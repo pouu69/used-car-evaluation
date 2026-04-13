@@ -17,6 +17,8 @@
 - R04 제목을 "프레임 무사고" → "프레임/외판"으로 변경, 외부패널 수리 내역 표시
 - manifest version `0.3.0` 동기화, description "12 룰" 반영
 - "11 RULES" → "12 RULES" 표기 수정 (TabBar, EmptyState, CLAUDE.md)
+- CAUTION 판정 임계값 warn 1개 → 2개 이상으로 상향 (`a2886f8`)
+  - warn 1개는 OK 판정 (룰 카드에서 warn 뱃지는 유지)
 
 ### UI
 

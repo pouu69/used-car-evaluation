@@ -9,7 +9,7 @@ interface TabBarProps {
 }
 
 const TABS: Array<{ id: Tab; label: string; sub: string }> = [
-  { id: 'checklist', label: 'CHECKLIST', sub: '◼ 11 RULES' },
+  { id: 'checklist', label: 'CHECKLIST', sub: '◼ 12 RULES' },
   { id: 'ai', label: 'AI REVIEW', sub: '◇ GEMINI / GPT' },
   { id: 'mylist', label: 'MY LIST', sub: '★ SAVED CARS' },
 ];

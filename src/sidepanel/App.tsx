@@ -50,7 +50,7 @@ import {
   ErrorView,
   css as errorCss,
 } from './components/ErrorView.js';
-import { SavedList, css as savedListCss } from './components/SavedList.js';
+import { SavedList } from './components/SavedList.js';
 
 /**
  * Brutalist Scoreboard shell.
@@ -85,8 +85,7 @@ const SHEET =
   loadingCss +
   emptyCss +
   errorCss +
-  aiPanelCss +
-  savedListCss;
+  aiPanelCss;
 
 interface Counts {
   total: number;
@@ -192,7 +191,7 @@ export const App: React.FC = () => {
   if (!active || !isEncarDetail(active.url)) {
     return (
       <Wrapper>
-        <EmptyState />
+        <EmptyState savedListKey={savedListKey} />
       </Wrapper>
     );
   }

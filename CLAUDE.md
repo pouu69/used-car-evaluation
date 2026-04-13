@@ -1,7 +1,7 @@
 # AutoVerdict — Claude Code Guide
 
 Chrome extension (Manifest V3): auto-evaluates used car listings on Encar (fem.encar.com).
-11-rule deterministic checklist + optional LLM advisory.
+12-rule deterministic checklist + optional LLM advisory.
 
 ## Architecture Overview
 
@@ -33,7 +33,7 @@ src/
     parsers/             — Encar JSON/state parsers (pure functions, no I/O)
     bridge/              — EncarParsedData → ChecklistFacts conversion
     collectors/          — Source registry, multi-source merge
-    rules/               — R01–R11 rule functions + evaluate()
+    rules/               — R01–R12 rule functions + evaluate()
     evaluation/          — LLM evaluation prompts + execution
     llm/                 — OpenAI/Gemini clients (provider-agnostic interface)
     storage/             — IndexedDB (Dexie) — cache, acks, saved, settings

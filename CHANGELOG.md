@@ -18,6 +18,12 @@
 - manifest version `0.3.0` 동기화, description "12 룰" 반영
 - "11 RULES" → "12 RULES" 표기 수정 (TabBar, EmptyState, CLAUDE.md)
 
+### UI
+
+- SavedCard 게이지 바 제거, K/W → "치명/주의" 한글 표기 (`85cfef1`)
+- SavedCard 치명/주의 좌측 + 버튼 우측 한 줄 배치
+- MyList에서 현재 live 차량 클릭 시 무시 (이미 보고 있는 경우)
+
 ### Refactoring
 
 - 메시지 핸들러를 `background/handlers.ts`로 분리 — 디스패치 맵 패턴 (SRP)

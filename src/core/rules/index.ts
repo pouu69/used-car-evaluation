@@ -433,10 +433,11 @@ export const evaluate = (
     .filter((r): r is RuleResult => r !== null);
   const killers = results.filter((r) => r.severity === 'killer');
   const warns = results.filter((r) => r.severity === 'warn');
+  const CAUTION_THRESHOLD = 2;
   const verdict: Verdict =
     killers.length > 0
       ? 'NEVER'
-      : warns.length > 0
+      : warns.length >= CAUTION_THRESHOLD
         ? 'CAUTION'
         : results.some((r) => r.severity === 'unknown')
           ? 'UNKNOWN'

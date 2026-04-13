@@ -132,10 +132,10 @@ describe('integration: parsed → facts → verdict', () => {
     expect(r01?.severity).toBe('pass');
   });
 
-  it('Sample 008 (쏘나타 누유) → CAUTION via R12 oil leak warn', () => {
+  it('Sample 008 (쏘나타 누유) → OK with R12 oil leak warn (single warn = OK)', () => {
     const facts = encarToFacts(sampleOilLeak);
     const report = evaluate(facts);
-    expect(report.verdict).toBe('CAUTION');
+    expect(report.verdict).toBe('OK');
     expect(report.killers.length).toBe(0);
     const r12 = report.results.find((r) => r.ruleId === 'R12');
     expect(r12?.severity).toBe('warn');

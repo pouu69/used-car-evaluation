@@ -4,6 +4,11 @@
 
 ### Features
 
+- **홈 페이지** — 엔카 매물 외 페이지에서 브랜딩 홈 + MY LIST 탭 표시 (`0b213e1`)
+  - CSS로 그린 브루탈리스트 자동차 일러스트
+  - "시작하기" 버튼 → fem.encar.com 새 탭 오픈
+  - 3단계 사용 가이드
+  - MY LIST 탭에서 저장 차량 목록 조회 + 엔카 페이지 이동
 - **R12 누유 룰** — 성능점검 inners[] 트리에서 누유(코드 6/7) 감지, warn 표시 (`2075b7d`)
 - **저장 10개 제한** — 저장 차량 최대 10대, 초과 시 차단 + 카운터 UI (`8344b02`)
 
@@ -11,12 +16,14 @@
 
 - R04 제목을 "프레임 무사고" → "프레임/외판"으로 변경, 외부패널 수리 내역 표시
 - manifest version `0.3.0` 동기화, description "12 룰" 반영
+- "11 RULES" → "12 RULES" 표기 수정 (TabBar, EmptyState, CLAUDE.md)
 
 ### Refactoring
 
 - 메시지 핸들러를 `background/handlers.ts`로 분리 — 디스패치 맵 패턴 (SRP)
 - 저장 상태/로직을 `useSavedCars` 훅으로 추출 (SRP)
 - 룰 매직 넘버를 명명 상수로 교체 (Clean Code)
+- EmptyState → 홈 페이지 컴포넌트로 전환, SavedList CSS 중복 제거
 
 ## [0.2.0] — 2026-04-11
 

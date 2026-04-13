@@ -159,6 +159,7 @@ export const App: React.FC = () => {
   } = useSavedCars(row);
 
   const handleViewSavedCar = async (carId: string) => {
+    if (!viewingSavedCarId && row && row.carId === carId) return;
     await viewSavedCar(carId);
     setTab('checklist');
   };

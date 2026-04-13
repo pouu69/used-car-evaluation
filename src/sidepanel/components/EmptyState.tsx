@@ -248,14 +248,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({ savedListKey = 0 }) => {
           </div>
           <button
             className="hp-start-btn"
-            onClick={() => chrome.tabs.create({ url: 'https://fem.encar.com' })}
+            onClick={() => chrome.tabs.create({ url: 'https://encar.com' })}
           >
             시작하기 →
           </button>
           <div className="hp-steps">
             <div className="hp-step">
               <span className="hp-step-num">1</span>
-              <span>fem.encar.com 에서 매물 검색</span>
+              <span>엔카 에서 매물 검색</span>
             </div>
             <div className="hp-step">
               <span className="hp-step-num">2</span>

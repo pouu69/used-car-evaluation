@@ -70,29 +70,20 @@ export const css: string = `
   font-size: 15px;
   margin-bottom: 6px;
 }
-.sc-bar-row {
+.sc-bottom {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  margin-top: 6px;
+}
+.sc-counts {
   font-family: 'Space Mono', monospace;
   font-size: 9px;
   letter-spacing: 0.5px;
 }
-.sc-bar {
-  flex: 1;
-  height: 6px;
-  background: #e0e0e0;
-  position: relative;
-}
-.sc-bar-fill {
-  height: 100%;
-  background: #000;
-}
 .sc-actions {
   display: flex;
-  justify-content: flex-end;
   gap: 8px;
-  margin-top: 8px;
 }
 .sc-action-btn {
   font-family: 'Space Mono', monospace;
@@ -162,31 +153,25 @@ export const SavedCard: React.FC<SavedCardProps> = ({
       <div className="sc-price" style={{ paddingLeft: 24 }}>
         {fmtPrice(data.priceWon)}
       </div>
-      <div className="sc-bar-row" style={{ paddingLeft: 24 }}>
-        <div className="sc-bar">
-          <div
-            className="sc-bar-fill"
-            style={{ width: `${Math.min(data.score, 100)}%` }}
-          />
+      <div className="sc-bottom" style={{ paddingLeft: 24 }}>
+        <span className="sc-counts">치명 {data.killerCount} · 주의 {data.warnCount}</span>
+        <div className="sc-actions">
+          <a
+            className="sc-action-btn"
+            href={data.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+          >
+            엔카 →
+          </a>
+          <button
+            className="sc-action-btn"
+            onClick={(e) => { e.stopPropagation(); onDelete(data.carId); }}
+          >
+            삭제
+          </button>
         </div>
-        <span>K:{data.killerCount} W:{data.warnCount}</span>
-      </div>
-      <div className="sc-actions">
-        <a
-          className="sc-action-btn"
-          href={data.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-        >
-          엔카 →
-        </a>
-        <button
-          className="sc-action-btn"
-          onClick={(e) => { e.stopPropagation(); onDelete(data.carId); }}
-        >
-          삭제
-        </button>
       </div>
     </div>
   );
